@@ -2,7 +2,7 @@ name: DockerBuildPush
 
 on:
   push:
-    branches: [ functionland/fula ]
+    branches: [ functionland/fula,Build-workflow ]
 jobs:
     build-and-deploy:
         runs-on: ubuntu-latest
