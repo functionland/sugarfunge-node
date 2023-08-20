@@ -64,10 +64,10 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-	type HoldIdentifier = ();
-	type FreezeIdentifier = ();
-	type MaxHolds = ();
-	type MaxFreezes = ();
+    type HoldIdentifier = ();
+    type FreezeIdentifier = ();
+    type MaxHolds = ();
+    type MaxFreezes = ();
 }
 
 parameter_types! {
@@ -91,7 +91,9 @@ impl sugarfunge_asset::Config for Test {
 parameter_types! {
     pub const CurrencyModuleId: PalletId = PalletId(*b"sug/curr");
     pub const BagModuleId: PalletId = PalletId(*b"sug/crow");
-    pub const MaxOwners: u32 = 20;
+    pub const MaxHolders: u32 = 20;
+    pub const MaxDepositClassAssets: u32 = 100;
+    pub const MaxDepositTypeAssets: u32 = 100;
 }
 
 impl sugarfunge_bag::Config for Test {
@@ -99,7 +101,11 @@ impl sugarfunge_bag::Config for Test {
     type PalletId = BagModuleId;
     type CreateBagDeposit = CreateBagDeposit;
     type Currency = Balances;
-    type MaxOwners = MaxOwners;
+    type MaxHolders = MaxHolders;
+    type MaxClassMetadata = MaxClassMetadata;
+    type MaxDepositClassAssets = MaxDepositClassAssets;
+    type MaxDepositTypeAssets = MaxDepositTypeAssets;
+    type Balance = Balance;
 }
 
 // Configure a mock runtime to test the pallet.

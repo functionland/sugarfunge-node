@@ -2,7 +2,7 @@
 title: Installation
 ---
 
-[//]: # (SBP-M1 review: appears to be taken from docs.substrate.io without attribution)
+[//]: # "SBP-M1 review: appears to be taken from docs.substrate.io without attribution"
 
 This page will guide you through the steps needed to prepare a computer for development with the
 Substrate Node Template. Since Substrate is built with
@@ -81,3 +81,7 @@ rustup update nightly
 rustup update stable
 rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
+
+## Attributions
+
+The templates used here were taken from [Substrate](https://docs.substrate.io/)

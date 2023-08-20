@@ -53,9 +53,6 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 #[cfg(any(feature = "std", test))]
 pub use sugarfunge_bundle::Call as BundleCall;
-// SBP-M1 review: pallet_template, remove from runtime until properly implemented
-#[cfg(any(feature = "std", test))]
-pub use sugarfunge_exgine::Call as ExgineCall;
 #[cfg(any(feature = "std", test))]
 pub use sugarfunge_market::Call as MarketCall;
 
@@ -414,11 +411,6 @@ parameter_types! {
     pub const MarketModuleId: PalletId = PalletId(*b"sug/mrkt");
 }
 
-// SBP-M1 review: does nothing, pallet template
-impl sugarfunge_dao::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-}
-
 parameter_types! {
     // SBP-M1 review: only used once, consider inlining
     pub const MaxAssets: u32 = 20;
@@ -448,11 +440,6 @@ impl sugarfunge_bag::Config for Runtime {
     type CreateBagDeposit = CreateBagDeposit;
     type Currency = Balances;
     type MaxOwners = MaxOwners;
-}
-
-// SBP-M1 review: does nothing, pallet_template, remove from runtime until properly implemented
-impl sugarfunge_exgine::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
 }
 
 // SBP-M1 review: no benchmarks, invalid static weights
@@ -533,11 +520,8 @@ construct_runtime!(
 
         // SugarFunge pallets
         Asset: sugarfunge_asset::{Pallet, Call, Storage, Event<T>},
-        Dao: sugarfunge_dao::{Pallet, Call, Storage, Event<T>},
         Bundle: sugarfunge_bundle::{Pallet, Call, Storage, Event<T>},
         Bag: sugarfunge_bag::{Pallet, Call, Storage, Event<T>},
-        // SBP-M1 review: does nothing, pallet_template, remove from runtime until properly implemented
-        Exgine: sugarfunge_exgine::{Pallet, Call, Storage, Event<T>},
         Market: sugarfunge_market::{Pallet, Call, Storage, Event<T>},
 
         // Functionland pallets
