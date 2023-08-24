@@ -2,6 +2,7 @@
 
 use codec::EncodeLike;
 use codec::{Decode, Encode, MaxEncodedLen};
+use core::iter::Sum;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     ensure,
@@ -10,6 +11,7 @@ use frame_support::{
 };
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::UniqueSaturatedInto;
+use sp_arithmetic::ArithmeticError;
 use sp_runtime::{traits::AccountIdConversion, BoundedVec, RuntimeDebug};
 use sp_std::fmt::Debug;
 use sp_std::prelude::*;
@@ -85,7 +87,15 @@ pub mod pallet {
         #[pallet::constant]
         type MaxDepositTypeAssets: Get<u32>;
 
-        type Balance: Copy + TypeInfo + Debug + Eq + EncodeLike + Encode + Decode + MaxEncodedLen;
+        type Balance: Copy
+            + TypeInfo
+            + Debug
+            + Eq
+            + EncodeLike
+            + Encode
+            + Decode
+            + MaxEncodedLen
+            + Sum;
     }
 
     type BalanceOf<T> =
@@ -167,7 +177,7 @@ pub mod pallet {
             metadata: ClassMetadataOf<T>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            Self::do_register_class(&who, class_id, metadata)
+            Self::do_register_class(who, class_id, metadata)
         }
 
         // SBP-M1 review: whilst a deposit is taken for a bag, anyone can call this to create bags and mint tokens. Consider whether this should perhaps be limited to the class owner or governance?
@@ -202,7 +212,7 @@ pub mod pallet {
             >,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            Self::do_deposit(&who, &bag, assets)
+            Self::do_deposit(who, bag, assets)
         }
 
         // Withdraw from a given bag
@@ -219,9 +229,8 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
     pub fn do_register_class(
-        who: &T::AccountId,
+        who: T::AccountId,
         class_id: T::ClassId,
-        // SBP-M1 review: not consumed, can pass by reference
         metadata: ClassMetadataOf<T>,
     ) -> DispatchResult {
         ensure!(
@@ -229,7 +238,6 @@ impl<T: Config> Pallet<T> {
             Error::<T>::BagClassExists
         );
 
-        // SBP-M1 review: refactor into account_id() function
         let owner = <T as Config>::PalletId::get().into_account_truncating();
         // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass
         // SBP-M1 review: unnecessary clone and needless borrows
@@ -244,24 +252,22 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: BagClasses removal should also remove NextBagId entry
         BagClasses::<T>::insert(class_id, &bag_class);
 
-        Self::deposit_event(Event::Register {
-            // SBP-M1 review: unnecessary clone
-            who: who.clone(),
-            class_id,
-        });
+        Self::deposit_event(Event::Register { who, class_id });
 
         Ok(())
     }
 
-    // SBP-M1 review: too many lines, refactor
+    fn get_operator_account_id() -> <T as frame_system::Config>::AccountId {
+        <T as Config>::PalletId::get().into_account_truncating()
+    }
+
     pub fn do_create_bag(
-        who: &T::AccountId,
+        who: T::AccountId,
         class_id: T::ClassId,
         holders: BoundedVec<(T::AccountId, T::Balance), <T as Config>::MaxHolders>,
     ) -> DispatchResult {
         ensure!(
-            // SBP-M1 review: needless borrow
-            BagClasses::<T>::contains_key(&class_id),
+            BagClasses::<T>::contains_key(class_id),
             Error::<T>::InvalidBagClass
         );
 
@@ -269,48 +275,40 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: needless borrow
         let bag_id = NextBagId::<T>::try_mutate(&class_id, |id| -> Result<u64, DispatchError> {
             let current_id = *id;
-            // SBP-M1 review: use safe math
+            ensure!((*id).checked_add(1).is_some(), ArithmeticError::Overflow);
             *id = *id + 1;
             Ok(current_id)
         })?;
 
-        // SBP-M1 review: convert directly into u64 to save a cast
-        let block_number: u32 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-        let sub = vec![block_number as u64, class_id.into(), bag_id];
+        let block_number: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+        let sub = vec![block_number, class_id.into(), bag_id];
         let bag = <T as Config>::PalletId::get().into_sub_account_truncating(sub);
 
         ensure!(!Bags::<T>::contains_key(&bag), Error::<T>::BagExists);
 
         // SBP-M1 review: consider whether bag deposit should increase based on number of shares. A static deposit value may not account for very large share structures.
         let deposit = T::CreateBagDeposit::get();
-        <T as Config>::Currency::transfer(who, &bag, deposit, AllowDeath)?;
+        <T as Config>::Currency::transfer(&who, &bag, deposit, AllowDeath)?;
 
         let asset_id: T::AssetId = bag_id.into();
 
-        // SBP-M1 review: refactor into account_id() function
-        let operator: T::AccountId = <T as Config>::PalletId::get().into_account_truncating();
+        let operator = Self::get_operator_account_id();
 
         // Mint shares for each owner
-        // SBP-M1 review: iteration should be bounded to complete within block limits. Each iteration is adding state and should be benchmarked accordingly.
-        for (idx, owner) in owners.iter().enumerate() {
+        // Each iteration is adding state and should be benchmarked accordingly.
+        for holder in holders.iter() {
             // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass + Mint
             sugarfunge_asset::Pallet::<T>::do_mint(
-                &operator,
-                // SBP-M1 review: needless borrow
-                &owner,
-                class_id,
-                asset_id,
-                // SBP-M1 review: indexing may panic, .get() preferred. Eliminated by using tuple as suggested above
-                shares[idx],
+                &operator, &holder.0, class_id, asset_id, holder.1,
             )?;
         }
 
         let new_bag = Bag {
             // SBP-M1 review: unnecessary clone
-            operator: operator.clone(),
+            operator,
             class_id,
             asset_id,
-            total_shares: shares.iter().sum(),
+            total_shares: holders.iter().map(|x| x.1).sum(),
         };
 
         // SBP-M1 review: Bags are never removed, consider mechanism for avoiding state bloat
@@ -319,20 +317,19 @@ impl<T: Config> Pallet<T> {
 
         // SBP-M1 review: unnecessary clones
         Self::deposit_event(Event::Created {
-            bag: bag.clone(),
-            who: who.clone(),
+            bag,
+            who,
             class_id,
             asset_id,
-            owners: owners.clone(),
+            owners: holders.iter().map(|x| x.0).collect(),
         });
 
-        // SBP-M1 review: unnecessary clone and return type not used
-        Ok(bag.clone())
+        Ok(())
     }
 
     pub fn do_deposit(
-        who: &T::AccountId,
-        bag: &T::AccountId,
+        who: T::AccountId,
+        bag: T::AccountId,
         assets: BoundedVec<
             (
                 T::ClassId,
@@ -345,39 +342,24 @@ impl<T: Config> Pallet<T> {
         ensure!(Bags::<T>::contains_key(&bag), Error::<T>::InvalidBag);
 
         // SBP-M1 review: iteration should be bounded to complete within block limits. Each iteration is changing state and should be benchmarked accordingly.
-        for (idx, class_id) in class_ids.iter().enumerate() {
-            // SBP-M1 review: improve parameter data type to avoid this
-            ensure!(
-                // SBP-M1 review: indexing may panic, .get() preferred. Can be eliminated by improving parameter type
-                asset_ids[idx].len() == amounts[idx].len(),
-                Error::<T>::InvalidArrayLength
-            );
-
+        for asset in assets.iter() {
             // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass + Mint + BatchTransfer
             sugarfunge_asset::Pallet::<T>::do_batch_transfer_from(
                 // SBP-M1 review: needless borrows
                 &who,
                 &who,
                 &bag,
-                *class_id,
-                // SBP-M1 review: indexing may panic, .get() preferred. Can be eliminated by improving parameter type
-                asset_ids[idx].clone(),
-                amounts[idx].clone(),
+                asset.0,
+                asset.1.iter().map(|x| x.0).collect(),
+                asset.1.iter().map(|x| x.1).collect(),
             )?;
         }
+        Self::deposit_event(Event::Deposit { bag, who });
 
-        // SBP-M1 review: unnecessary clones
-        Self::deposit_event(Event::Deposit {
-            bag: bag.clone(),
-            who: who.clone(),
-        });
-
-        // SBP-M1 review: unnecessary .into()
-        Ok(().into())
+        Ok(())
     }
 
     // SBP-M1 review: should sweep not remove bag from Bags storage item?
-    // SBP-M1 review: too many lines, refactor
     pub fn do_sweep(who: &T::AccountId, to: &T::AccountId, bag: &T::AccountId) -> DispatchResult {
         let bag_info = Bags::<T>::get(bag).ok_or(Error::<T>::InvalidBag)?;
 
@@ -390,8 +372,7 @@ impl<T: Config> Pallet<T> {
             Error::<T>::InsufficientShares
         );
 
-        // SBP-M1 review: refactor into account_id() function
-        let operator: T::AccountId = <T as Config>::PalletId::get().into_account_truncating();
+        let operator = Self::get_operator_account_id();
 
         // Burn bag shares
         // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : Burn
