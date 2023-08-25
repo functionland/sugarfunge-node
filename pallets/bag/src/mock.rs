@@ -102,10 +102,9 @@ impl sugarfunge_bag::Config for Test {
     type CreateBagDeposit = CreateBagDeposit;
     type Currency = Balances;
     type MaxHolders = MaxHolders;
-    type MaxClassMetadata = MaxClassMetadata;
     type MaxDepositClassAssets = MaxDepositClassAssets;
     type MaxDepositTypeAssets = MaxDepositTypeAssets;
-    type Balance = Balance;
+    type Asset = Asset;
 }
 
 // Configure a mock runtime to test the pallet.
@@ -115,10 +114,10 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Asset: sugarfunge_asset::{Pallet, Call, Storage, Event<T>},
-        Bag: sugarfunge_bag::{Pallet, Call, Storage, Event<T>},
+        System: frame_system,
+        Balances: pallet_balances,
+        Asset: sugarfunge_asset,
+        Bag: sugarfunge_bag,
     }
 );
 

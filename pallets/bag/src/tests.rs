@@ -17,12 +17,26 @@ pub fn before_bag() {
     run_to_block(10);
     assert_ok!(Asset::do_mint(&1, &1, 0, 0, 500 * DOLLARS));
     assert_eq!(Asset::balance_of(&1, 0, 0), 500 * DOLLARS);
-    assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 1, bounded_vec![]));
-    assert_ok!(Asset::create_asset(RuntimeOrigin::signed(1), 1, 1, bounded_vec![]));
+    assert_ok!(Asset::create_class(
+        RuntimeOrigin::signed(1),
+        1,
+        1,
+        bounded_vec![]
+    ));
+    assert_ok!(Asset::create_asset(
+        RuntimeOrigin::signed(1),
+        1,
+        1,
+        bounded_vec![]
+    ));
     assert_ok!(Asset::do_mint(&1, &1, 1, 1, 50000 * DOLLARS));
     assert_eq!(Asset::balance_of(&1, 1, 1), 50000 * DOLLARS);
 
-    assert_ok!(Bag::do_register(&1, 1000, bounded_vec![]));
+    assert_ok!(Bag::register_class(
+        RuntimeOrigin::signed(1),
+        1000,
+        bounded_vec![]
+    ));
 }
 
 #[test]
@@ -30,9 +44,24 @@ fn deposit_assets() {
     new_test_ext().execute_with(|| {
         before_bag();
 
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 2, bounded_vec![]));
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 3, bounded_vec![]));
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 4, bounded_vec![]));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            2,
+            bounded_vec![]
+        ));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            3,
+            bounded_vec![]
+        ));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            4,
+            bounded_vec![]
+        ));
 
         let asset_ids = [0, 1, 2, 3, 4].to_vec();
         let amounts = [
@@ -68,7 +97,11 @@ fn deposit_assets() {
             amounts.clone(),
         ));
 
-        assert_ok!(Bag::create(RuntimeOrigin::signed(1), 1000, vec![2], vec![1]));
+        assert_ok!(Bag::create_bag(
+            RuntimeOrigin::signed(1),
+            1000,
+            bounded_vec![(2, 1)]
+        ));
 
         // SBP-M1 review: replace with assert_last_event or assert_has_event, passing event with expected values for comparison
         if let RuntimeEvent::Bag(crate::Event::Created {
@@ -77,7 +110,6 @@ fn deposit_assets() {
             class_id,
             asset_id,
             owners,
-
         }) = last_event()
         {
             assert_eq!(who, 1);
@@ -88,9 +120,11 @@ fn deposit_assets() {
             assert_ok!(Bag::deposit(
                 RuntimeOrigin::signed(2),
                 bag,
-                vec![2, 3, 4],
-                vec![asset_ids.clone(), asset_ids.clone(), asset_ids.clone()],
-                vec![amounts.clone(), amounts.clone(), amounts.clone()],
+                bounded_vec![
+                    (2, bounded_vec![(0, 100 * DOLLARS)]),
+                    (3, bounded_vec![(1, 200 * DOLLARS)]),
+                    (4, bounded_vec![(2, 300 * DOLLARS)])
+                ]
             ));
 
             let mut balances = Asset::balances_of_owner(&bag).unwrap();
@@ -147,9 +181,24 @@ fn sweep_assets() {
     new_test_ext().execute_with(|| {
         before_bag();
 
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 2, bounded_vec![]));
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 3, bounded_vec![]));
-        assert_ok!(Asset::create_class(RuntimeOrigin::signed(1), 1, 4, bounded_vec![]));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            2,
+            bounded_vec![]
+        ));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            3,
+            bounded_vec![]
+        ));
+        assert_ok!(Asset::create_class(
+            RuntimeOrigin::signed(1),
+            1,
+            4,
+            bounded_vec![]
+        ));
 
         let asset_ids = [0, 1, 2, 3, 4].to_vec();
         let amounts = [
@@ -185,7 +234,12 @@ fn sweep_assets() {
             amounts.clone(),
         ));
 
-        assert_ok!(Bag::create(RuntimeOrigin::signed(1), 1000, vec![2], vec![1]));
+        assert_ok!(Bag::create_bag(
+            RuntimeOrigin::signed(1),
+            1000,
+            bounded_vec![(2, 1)]
+        ));
+
         // SBP-M1 review: replace with assert_last_event or assert_has_event, passing event with expected values for comparison
         if let RuntimeEvent::Bag(crate::Event::Created {
             bag,
@@ -203,11 +257,12 @@ fn sweep_assets() {
             assert_ok!(Bag::deposit(
                 RuntimeOrigin::signed(2),
                 bag,
-                vec![2, 3, 4],
-                vec![asset_ids.clone(), asset_ids.clone(), asset_ids.clone()],
-                vec![amounts.clone(), amounts.clone(), amounts.clone()],
+                bounded_vec![
+                    (2, bounded_vec![(0, 100 * DOLLARS)]),
+                    (3, bounded_vec![(1, 200 * DOLLARS)]),
+                    (4, bounded_vec![(2, 300 * DOLLARS)])
+                ]
             ));
-
             let mut balances = Asset::balances_of_owner(&bag).unwrap();
             balances.sort();
             let expected_balances = vec![

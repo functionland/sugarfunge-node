@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::EncodeLike;
 use codec::{Decode, Encode, MaxEncodedLen};
-use core::iter::Sum;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     ensure,
@@ -13,8 +11,8 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::UniqueSaturatedInto;
 use sp_arithmetic::ArithmeticError;
 use sp_runtime::{traits::AccountIdConversion, BoundedVec, RuntimeDebug};
-use sp_std::fmt::Debug;
 use sp_std::prelude::*;
+use sugarfunge_asset::AssetInterface;
 
 pub use pallet::*;
 
@@ -56,8 +54,8 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    // SBP-M1 review: loose pallet coupling preferable, can sugarfunge_asset dependency be brought in via trait (associated type on this pallets Config trait)?
-    pub trait Config: frame_system::Config + sugarfunge_asset::Config {
+
+    pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -73,11 +71,7 @@ pub mod pallet {
 
         /// The minimum balance to create bag
         #[pallet::constant]
-        type CreateBagDeposit: Get<BalanceOf<Self>>;
-
-        /// Max instances of class metadata
-        #[pallet::constant]
-        type MaxClassMetadata: Get<u32>;
+        type CreateBagDeposit: Get<CurrencyBalance<Self>>;
 
         /// Max quantity of asset classes an account can deposit
         #[pallet::constant]
@@ -87,39 +81,37 @@ pub mod pallet {
         #[pallet::constant]
         type MaxDepositTypeAssets: Get<u32>;
 
-        type Balance: Copy
-            + TypeInfo
-            + Debug
-            + Eq
-            + EncodeLike
-            + Encode
-            + Decode
-            + MaxEncodedLen
-            + Sum;
+        type Asset: AssetInterface<AccountId = Self::AccountId>;
     }
 
-    type BalanceOf<T> =
+    type CurrencyBalance<T> =
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-    pub type ClassMetadataOf<T> = BoundedVec<u8, <T as Config>::MaxClassMetadata>;
+    pub type ClassMetadataOf<T> = <<T as Config>::Asset as AssetInterface>::Metadata;
+
+    pub type ClassId<T> = <<T as Config>::Asset as AssetInterface>::ClassId;
+
+    pub type AssetId<T> = <<T as Config>::Asset as AssetInterface>::AssetId;
+
+    pub type Balance<T> = <<T as Config>::Asset as AssetInterface>::Balance;
 
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
     #[pallet::storage]
     pub(super) type BagClasses<T: Config> =
-        StorageMap<_, Blake2_128, T::ClassId, BagClass<T::AccountId, T::ClassId>>;
+        StorageMap<_, Blake2_128, ClassId<T>, BagClass<T::AccountId, ClassId<T>>>;
 
     #[pallet::storage]
     pub(super) type Bags<T: Config> = StorageMap<
         _,
         Blake2_128,
         T::AccountId,
-        Bag<T::Balance, T::AccountId, T::ClassId, T::AssetId>,
+        Bag<Balance<T>, T::AccountId, ClassId<T>, AssetId<T>>,
     >;
 
     #[pallet::storage]
-    pub(super) type NextBagId<T: Config> = StorageMap<_, Blake2_128, T::ClassId, u64, ValueQuery>;
+    pub(super) type NextBagId<T: Config> = StorageMap<_, Blake2_128, ClassId<T>, u64, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -127,14 +119,14 @@ pub mod pallet {
         /// A class for Bags was successfully created
         Register {
             who: T::AccountId,
-            class_id: T::ClassId,
+            class_id: ClassId<T>,
         },
         /// A Bag was successfully created
         Created {
             bag: T::AccountId,
             who: T::AccountId,
-            class_id: T::ClassId,
-            asset_id: T::AssetId,
+            class_id: ClassId<T>,
+            asset_id: AssetId<T>,
             owners: Vec<T::AccountId>,
         },
         // A deposit was made into the refered bag
@@ -173,7 +165,7 @@ pub mod pallet {
         #[pallet::weight(Weight::from_parts(10_000 as u64, 0))]
         pub fn register_class(
             origin: OriginFor<T>,
-            class_id: T::ClassId,
+            class_id: ClassId<T>,
             metadata: ClassMetadataOf<T>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
@@ -188,11 +180,11 @@ pub mod pallet {
         #[pallet::weight(Weight::from_parts(10_000 as u64, 0))]
         pub fn create_bag(
             origin: OriginFor<T>,
-            class_id: T::ClassId,
-            holders: BoundedVec<(T::AccountId, T::Balance), <T as Config>::MaxHolders>,
+            class_id: ClassId<T>,
+            holders: BoundedVec<(T::AccountId, Balance<T>), <T as Config>::MaxHolders>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            Self::do_create_bag(&who, class_id, holders)
+            Self::do_create_bag(who, class_id, holders)
         }
 
         /// Deposit into a given bag
@@ -205,8 +197,8 @@ pub mod pallet {
             bag: T::AccountId,
             assets: BoundedVec<
                 (
-                    T::ClassId,
-                    BoundedVec<(T::AssetId, T::Balance), <T as Config>::MaxDepositTypeAssets>,
+                    ClassId<T>,
+                    BoundedVec<(AssetId<T>, Balance<T>), <T as Config>::MaxDepositTypeAssets>,
                 ),
                 <T as Config>::MaxDepositClassAssets,
             >,
@@ -222,7 +214,7 @@ pub mod pallet {
         #[pallet::weight(Weight::from_parts(10_000 as u64, 0))]
         pub fn sweep(origin: OriginFor<T>, bag: T::AccountId, to: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            Self::do_sweep(&who, &to, &bag)
+            Self::do_sweep(who, to, bag)
         }
     }
 }
@@ -230,7 +222,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
     pub fn do_register_class(
         who: T::AccountId,
-        class_id: T::ClassId,
+        class_id: ClassId<T>,
         metadata: ClassMetadataOf<T>,
     ) -> DispatchResult {
         ensure!(
@@ -239,9 +231,8 @@ impl<T: Config> Pallet<T> {
         );
 
         let owner = <T as Config>::PalletId::get().into_account_truncating();
-        // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass
-        // SBP-M1 review: unnecessary clone and needless borrows
-        sugarfunge_asset::Pallet::<T>::do_create_class(&who, &owner, class_id, metadata.clone())?;
+
+        let _ = T::Asset::create_class(who.clone(), owner, class_id, metadata);
 
         let bag_class = BagClass {
             operator: who.clone(),
@@ -263,16 +254,14 @@ impl<T: Config> Pallet<T> {
 
     pub fn do_create_bag(
         who: T::AccountId,
-        class_id: T::ClassId,
-        holders: BoundedVec<(T::AccountId, T::Balance), <T as Config>::MaxHolders>,
+        class_id: ClassId<T>,
+        holders: BoundedVec<(T::AccountId, Balance<T>), <T as Config>::MaxHolders>,
     ) -> DispatchResult {
         ensure!(
             BagClasses::<T>::contains_key(class_id),
             Error::<T>::InvalidBagClass
         );
 
-        // SBP-M1 review: try_mutate unnecessary as no error returned, use .mutate(). Safe math fix will require try_mutate however, returning ArithmeticError::Overflow depending on id value
-        // SBP-M1 review: needless borrow
         let bag_id = NextBagId::<T>::try_mutate(&class_id, |id| -> Result<u64, DispatchError> {
             let current_id = *id;
             ensure!((*id).checked_add(1).is_some(), ArithmeticError::Overflow);
@@ -290,21 +279,23 @@ impl<T: Config> Pallet<T> {
         let deposit = T::CreateBagDeposit::get();
         <T as Config>::Currency::transfer(&who, &bag, deposit, AllowDeath)?;
 
-        let asset_id: T::AssetId = bag_id.into();
+        let asset_id: AssetId<T> = bag_id.into();
 
         let operator = Self::get_operator_account_id();
 
         // Mint shares for each owner
-        // Each iteration is adding state and should be benchmarked accordingly.
+        // SBP-M1 review: Each iteration is adding state and should be benchmarked accordingly.
         for holder in holders.iter() {
-            // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass + Mint
-            sugarfunge_asset::Pallet::<T>::do_mint(
-                &operator, &holder.0, class_id, asset_id, holder.1,
-            )?;
+            let _ = T::Asset::mint(
+                operator.clone(),
+                holder.0.clone(),
+                class_id,
+                asset_id,
+                holder.1,
+            );
         }
 
         let new_bag = Bag {
-            // SBP-M1 review: unnecessary clone
             operator,
             class_id,
             asset_id,
@@ -315,13 +306,12 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: corresponding bag accounts need cleanup when bag removed, with deposit returned
         Bags::<T>::insert(&bag, &new_bag);
 
-        // SBP-M1 review: unnecessary clones
         Self::deposit_event(Event::Created {
             bag,
             who,
             class_id,
             asset_id,
-            owners: holders.iter().map(|x| x.0).collect(),
+            owners: holders.iter().map(|x| x.0.clone()).collect(),
         });
 
         Ok(())
@@ -332,23 +322,20 @@ impl<T: Config> Pallet<T> {
         bag: T::AccountId,
         assets: BoundedVec<
             (
-                T::ClassId,
-                BoundedVec<(T::AssetId, T::Balance), <T as Config>::MaxDepositTypeAssets>,
+                ClassId<T>,
+                BoundedVec<(AssetId<T>, Balance<T>), <T as Config>::MaxDepositTypeAssets>,
             ),
             <T as Config>::MaxDepositClassAssets,
         >,
     ) -> DispatchResult {
-        // SBP-M1 review: needless borrow
-        ensure!(Bags::<T>::contains_key(&bag), Error::<T>::InvalidBag);
+        ensure!(Bags::<T>::contains_key(bag.clone()), Error::<T>::InvalidBag);
 
         // SBP-M1 review: iteration should be bounded to complete within block limits. Each iteration is changing state and should be benchmarked accordingly.
         for asset in assets.iter() {
-            // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : CreateClass + Mint + BatchTransfer
-            sugarfunge_asset::Pallet::<T>::do_batch_transfer_from(
-                // SBP-M1 review: needless borrows
-                &who,
-                &who,
-                &bag,
+            T::Asset::batch_transfer_from(
+                who.clone(),
+                who.clone(),
+                bag.clone(),
                 asset.0,
                 asset.1.iter().map(|x| x.0).collect(),
                 asset.1.iter().map(|x| x.1).collect(),
@@ -360,12 +347,10 @@ impl<T: Config> Pallet<T> {
     }
 
     // SBP-M1 review: should sweep not remove bag from Bags storage item?
-    pub fn do_sweep(who: &T::AccountId, to: &T::AccountId, bag: &T::AccountId) -> DispatchResult {
-        let bag_info = Bags::<T>::get(bag).ok_or(Error::<T>::InvalidBag)?;
+    pub fn do_sweep(who: T::AccountId, to: T::AccountId, bag: T::AccountId) -> DispatchResult {
+        let bag_info = Bags::<T>::get(bag.clone()).ok_or(Error::<T>::InvalidBag)?;
 
-        // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : Inspect
-        let shares =
-            sugarfunge_asset::Pallet::<T>::balance_of(who, bag_info.class_id, bag_info.asset_id);
+        let shares = T::Asset::balance_of(who.clone(), bag_info.class_id, bag_info.asset_id);
         ensure!(
             // SBP-M1 review: shares >= bag_info.total_shares ?
             shares == bag_info.total_shares,
@@ -375,26 +360,23 @@ impl<T: Config> Pallet<T> {
         let operator = Self::get_operator_account_id();
 
         // Burn bag shares
-        // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : Burn
-        sugarfunge_asset::Pallet::<T>::do_burn(
-            &operator,
-            who,
+        T::Asset::burn(
+            operator,
+            who.clone(),
             bag_info.class_id,
             bag_info.asset_id,
             bag_info.total_shares,
         )?;
 
-        // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : Inspect
-        // SBP-M1 review: needless borrow
-        let balances = sugarfunge_asset::Pallet::<T>::balances_of_owner(&bag)?;
+        let balances = T::Asset::balances_of_owner(bag.clone())?;
         // SBP-M1 review: iteration should be bounded to complete within block limits.
         // SBP-M1 review: destructure into clearer variable names
         let balances = balances.iter().fold(
             (
                 // SBP-M1 review: simplify using tuple
-                Vec::<T::ClassId>::new(),
-                Vec::<Vec<T::AssetId>>::new(),
-                Vec::<Vec<T::Balance>>::new(),
+                Vec::<ClassId<T>>::new(),
+                Vec::<Vec<AssetId<T>>>::new(),
+                Vec::<Vec<Balance<T>>>::new(),
             ),
             |(mut class_ids, mut asset_ids, mut balances), (class_id, asset_id, balance)| {
                 // SBP-M1 review: use .map_or_else()
@@ -425,27 +407,17 @@ impl<T: Config> Pallet<T> {
 
         // SBP-M1 review: iteration should be bounded to complete within block limits.
         for (idx, class_id) in balances.0.iter().enumerate() {
-            // SBP-M1 review: access via trait bounds on Config item - e.g. type Asset : BatchTransfer
-            sugarfunge_asset::Pallet::<T>::do_batch_transfer_from(
-                // SBP-M1 review: needless borrows
-                &bag,
-                &bag,
-                to,
+            T::Asset::batch_transfer_from(
+                bag.clone(),
+                bag.clone(),
+                to.clone(),
                 *class_id,
                 // SBP-M1 review: indexing may panic, prefer .get()
                 balances.1[idx].clone(),
                 balances.2[idx].clone(),
             )?;
         }
-
-        // SBP-M1 review: unnecessary clones
-        Self::deposit_event(Event::Sweep {
-            bag: bag.clone(),
-            who: who.clone(),
-            to: to.clone(),
-        });
-
-        // SBP-M1 review: return type not used anywhere
-        Ok(balances)
+        Self::deposit_event(Event::Sweep { bag, who, to });
+        Ok(())
     }
 }
