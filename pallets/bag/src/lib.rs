@@ -330,7 +330,7 @@ impl<T: Config> Pallet<T> {
     ) -> DispatchResult {
         ensure!(Bags::<T>::contains_key(bag.clone()), Error::<T>::InvalidBag);
 
-        // SBP-M1 review: iteration should be bounded to complete within block limits. Each iteration is changing state and should be benchmarked accordingly.
+        // SBP-M1 review: Each iteration is changing state and should be benchmarked accordingly.
         for asset in assets.iter() {
             T::Asset::batch_transfer_from(
                 who.clone(),
@@ -372,49 +372,32 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: iteration should be bounded to complete within block limits.
         // SBP-M1 review: destructure into clearer variable names
         let balances = balances.iter().fold(
-            (
-                // SBP-M1 review: simplify using tuple
-                Vec::<ClassId<T>>::new(),
-                Vec::<Vec<AssetId<T>>>::new(),
-                Vec::<Vec<Balance<T>>>::new(),
-            ),
-            |(mut class_ids, mut asset_ids, mut balances), (class_id, asset_id, balance)| {
-                // SBP-M1 review: use .map_or_else()
-                let class_idx = if let Some(class_idx) =
-                    class_ids.iter().position(|class| *class == *class_id)
-                {
-                    class_idx
-                } else {
-                    let class_idx = class_ids.len();
-                    class_ids.push(*class_id);
-                    class_idx
-                };
-                if asset_ids.len() <= class_idx {
-                    // SBP-M1 review: use safe math
-                    asset_ids.resize(class_idx + 1, vec![]);
+            Vec::<(ClassId<T>, Vec<AssetId<T>>, Vec<Balance<T>>)>::new(),
+            |mut assets, (class_id, asset_id, balance)| {
+                let position =
+                    if let Some(pos) = assets.iter().position(|asset| asset.0 == *class_id) {
+                        pos
+                    } else {
+                        let pos = assets.len();
+                        assets.push((*class_id, vec![], vec![]));
+                        pos
+                    };
+                if let Some(asset) = assets.get_mut(position) {
+                    asset.1.push(*asset_id);
+                    asset.2.push(*balance);
                 }
-                // SBP-M1 review: indexing may panic, prefer .get()
-                asset_ids[class_idx].push(*asset_id);
-                if balances.len() <= class_idx {
-                    // SBP-M1 review: use safe math
-                    balances.resize(class_idx + 1, vec![]);
-                }
-                // SBP-M1 review: indexing may panic, prefer .get()
-                balances[class_idx].push(*balance);
-                (class_ids, asset_ids, balances)
+                assets
             },
         );
 
-        // SBP-M1 review: iteration should be bounded to complete within block limits.
-        for (idx, class_id) in balances.0.iter().enumerate() {
+        for balance in balances.iter() {
             T::Asset::batch_transfer_from(
                 bag.clone(),
                 bag.clone(),
                 to.clone(),
-                *class_id,
-                // SBP-M1 review: indexing may panic, prefer .get()
-                balances.1[idx].clone(),
-                balances.2[idx].clone(),
+                balance.0,
+                balance.1.clone(),
+                balance.2.clone(),
             )?;
         }
         Self::deposit_event(Event::Sweep { bag, who, to });

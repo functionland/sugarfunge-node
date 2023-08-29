@@ -30,8 +30,8 @@ use sugarfunge_validator_set as validator_set;
 pub use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU64, Contains, EitherOfDiverse, EqualPrivilegeOnly, FindAuthor,
-        KeyOwnerProofSystem, Nothing, Randomness,
+        ConstU128, ConstU32, ConstU64, ConstU8, Contains, EitherOfDiverse, EqualPrivilegeOnly,
+        FindAuthor, KeyOwnerProofSystem, Nothing, Randomness,
     },
     weights::{
         constants::{
@@ -113,17 +113,10 @@ pub fn native_version() -> NativeVersion {
     }
 }
 
-/// We assume that ~10% of the block weight is consumed by `on_initalize` handlers.
-/// This is used to limit the maximal weight of a single extrinsic.
-// SBP-M1 review: remove as unused
-// const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-// SBP-M1 review: remove as unused
-/// We allow for 2 seconds of compute with a 6 second average block time.
-// const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_ref_time(2_000_000_000_000);
-// SBP-M1 review: move closer to usage
+
 /// Maximum metadata size usually for JSON content
 // SBP-M1 review: evaluate whether this is still feasible if becoming a parachain and adjust design accordingly
 const METADATA_SIZE: u32 = 1024 * 4;
@@ -136,8 +129,7 @@ parameter_types! {
             Weight::from_parts(2u64 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
             NORMAL_DISPATCH_RATIO,
         );
-    // SBP-M1 review: rename to BlockLength
-    pub RuntimeBlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
+    pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
         ::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
     pub const SS58Prefix: u8 = 42;
 }
@@ -150,7 +142,7 @@ impl frame_system::Config for Runtime {
     /// Block & extrinsics weights: base values and limits.
     type BlockWeights = BlockWeights;
     /// The maximum length of a block (in bytes).
-    type BlockLength = RuntimeBlockLength;
+    type BlockLength = BlockLength;
     /// The identifier used to distinguish between accounts.
     type AccountId = AccountId;
     /// The aggregated dispatch type that is available for extrinsics.
@@ -208,8 +200,6 @@ impl pallet_aura::Config for Runtime {
 
 impl pallet_grandpa::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    // SBP-M1 review: remove
-    //type RuntimeCall = RuntimeCall;
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
@@ -219,33 +209,18 @@ impl pallet_grandpa::Config for Runtime {
     type EquivocationReportSystem = ();
 }
 
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining to `type MinimumPeriod = ConstU64<{ SLOT_DURATION / 2 }>;`
-    pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
-}
-
 impl pallet_timestamp::Config for Runtime {
-    /// A timestamp: milliseconds since the unix epoch.
     type Moment = u64;
     type OnTimestampSet = Aura;
-    type MinimumPeriod = MinimumPeriod;
+    type MinimumPeriod = ConstU64<{ SLOT_DURATION / 2 }>;
     type WeightInfo = ();
 }
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
-parameter_types! {
-    // For weight estimation, we assume that the most locks on an individual account will be 50.
-    // This number may need to be adjusted in the future if this assumption no longer holds true.
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxLocks: u32 = 50;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxReserves: u32 = 50;
-}
-
 impl pallet_balances::Config for Runtime {
-    type MaxLocks = MaxLocks;
-    type MaxReserves = MaxReserves;
+    type MaxLocks = ConstU32<50>;
+    type MaxReserves = ConstU32<50>;
     type ReserveIdentifier = [u8; 8];
     /// The type for recording an account's balance.
     type Balance = Balance;
@@ -262,21 +237,15 @@ impl pallet_balances::Config for Runtime {
 }
 
 parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-    // SBP-M1 review: only used once, consider inlining
-    pub OperationalFeeMultiplier: u8 = 5;
-}
-
-parameter_types! {
     pub FeeMultiplier: Multiplier = Multiplier::one();
+    pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     // SBP-M1 review: consider what happens with fees and provide an OnUnbalanced handler to CurrencyAdapter accordingly
     type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
-    type OperationalFeeMultiplier = OperationalFeeMultiplier;
+    type OperationalFeeMultiplier = ConstU8<5>;
     // SBP-M1 review: consider
     type WeightToFee = IdentityFee<Balance>;
     type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
@@ -294,10 +263,6 @@ parameter_types! {
     // SBP-M1 review: only used once, consider inlining
     pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
         BlockWeights::get().max_block;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxScheduledPerBlock: u32 = 50;
-    // SBP-M1 review: not used, remove
-    pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
 // SBP-M1 review: consider whether required
@@ -308,7 +273,7 @@ impl pallet_scheduler::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type MaximumWeight = MaximumSchedulerWeight;
     type ScheduleOrigin = EnsureRoot<AccountId>;
-    type MaxScheduledPerBlock = MaxScheduledPerBlock;
+    type MaxScheduledPerBlock = ConstU32<50>;
     type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
     type OriginPrivilegeCmp = EqualPrivilegeOnly;
     // SBP-M1 review: consider adding Preimage pallet as required
@@ -316,12 +281,7 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-    // SBP-M1 review: increase to sane amount (e.g. 48 hours+) or provide justification
-    pub const CouncilMotionDuration: BlockNumber = 3 * MINUTES;
-    // SBP-M1 review: only used once, consider inlining
-    pub const CouncilMaxProposals: u32 = 100;
-    // SBP-M1 review: only used once, consider inlining
-    pub const CouncilMaxMembers: u32 = 100;
+    pub const CouncilMotionDuration: BlockNumber = 48 * HOURS;
     pub MaxProposalWeight: Weight = Perbill::from_percent(50) * BlockWeights::get().max_block;
 }
 
@@ -331,8 +291,8 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
     type Proposal = RuntimeCall;
     type RuntimeEvent = RuntimeEvent;
     type MotionDuration = CouncilMotionDuration;
-    type MaxProposals = CouncilMaxProposals;
-    type MaxMembers = CouncilMaxMembers;
+    type MaxProposals = ConstU32<100>;
+    type MaxMembers = ConstU32<100>;
     type DefaultVote = pallet_collective::PrimeDefaultVote;
     type SetMembersOrigin = EnsureRoot<AccountId>;
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
@@ -344,22 +304,16 @@ type EnsureRootOrHalfCouncil = EitherOfDiverse<
     pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 >;
 
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const MinAuthorities: u32 = 1;
-}
-
 // SBP-M1 review: no benchmarks, zero weights
 impl validator_set::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type AddRemoveOrigin = EnsureRootOrHalfCouncil;
-    type MinAuthorities = MinAuthorities;
+    type MinAuthorities = ConstU32<1>;
     type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
-    // SBP-M1 review: consider increasing period (e.g. 6 hours is default within parachain template: https://github.com/paritytech/cumulus/blob/9e187970ff89169b795343d6ebcff53158b61324/parachain-template/runtime/src/lib.rs#L407)
-    pub const Period: u32 = 2 * MINUTES;
+    pub const Period: u32 = 6 * HOURS;
     pub const Offset: u32 = 0;
 }
 
@@ -375,34 +329,16 @@ impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
 }
 
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const CreateAssetClassDeposit: Balance = 500 * MILLICENTS;
-    // SBP-M1 review: not used, remove
-    pub const CreateExchangeDeposit: Balance = 500 * MILLICENTS;
-    // SBP-M1 review: only used once, consider inlining
-    pub const CreateBagDeposit: Balance = 500 * MILLICENTS;
-    // SBP-M1 review: not used, remove
-    pub const CreateCurrencyClassDeposit: Balance = 500 * MILLICENTS;
-}
-
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxClassMetadata: u32 = METADATA_SIZE;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxAssetMetadata: u32 = METADATA_SIZE;
-}
-
 // SBP-M1 review: no benchmarks, invalid static weights
 impl sugarfunge_asset::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type CreateAssetClassDeposit = CreateAssetClassDeposit;
+    type CreateAssetClassDeposit = ConstU128<{ 500 * MILLICENTS }>;
     type Currency = Balances;
     // SBP-M1 review: are these overkill for expected usage for the life of the chain?
     type AssetId = u64;
     type ClassId = u64;
-    type MaxClassMetadata = MaxClassMetadata;
-    type MaxAssetMetadata = MaxAssetMetadata;
+    type MaxClassMetadata = ConstU32<{ METADATA_SIZE }>;
+    type MaxAssetMetadata = ConstU32<{ METADATA_SIZE }>;
 }
 
 parameter_types! {
@@ -411,35 +347,24 @@ parameter_types! {
     pub const MarketModuleId: PalletId = PalletId(*b"sug/mrkt");
 }
 
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxAssets: u32 = 20;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxRates: u32 = 20;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxMetadata: u32 = METADATA_SIZE;
-}
-
 // SBP-M1 review: no benchmarks, invalid static weights
 impl sugarfunge_bundle::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = BundleModuleId;
     type Currency = Balances;
-    type MaxAssets = MaxAssets;
-}
-
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxOwners: u32 = 20;
+    type MaxAssets = ConstU32<20>;
 }
 
 // SBP-M1 review: no benchmarks, invalid static weights
 impl sugarfunge_bag::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = BagModuleId;
-    type CreateBagDeposit = CreateBagDeposit;
+    type CreateBagDeposit = ConstU128<{ 500 * MILLICENTS }>;
     type Currency = Balances;
-    type MaxOwners = MaxOwners;
+    type MaxHolders = ConstU32<20>;
+    type MaxDepositClassAssets = ConstU32<100>;
+    type MaxDepositTypeAssets = ConstU32<100>;
+    type Asset = Asset;
 }
 
 // SBP-M1 review: no benchmarks, invalid static weights
@@ -449,48 +374,27 @@ impl sugarfunge_market::Config for Runtime {
     // SBP-M1 review: are these overkill for expected usage for the life of the chain?
     type MarketId = u64;
     type MarketRateId = u64;
-    type MaxRates = MaxRates;
-    type MaxMetadata = MaxMetadata;
-}
-
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxManifestMetadata: u32 = 128;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxCID: u32 = 128;
+    type MaxRates = ConstU32<20>;
+    type MaxMetadata = ConstU32<20>;
 }
 
 impl functionland_fula::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type MaxManifestMetadata = MaxManifestMetadata;
-    type MaxCID = MaxCID;
+    type MaxManifestMetadata = ConstU32<128>;
+    type MaxCID = ConstU32<128>;
     type Pool = Pool;
-}
-
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
-    pub const StringLimit: u32 = 128;
-    // SBP-M1 review: only used once, consider inlining
-    pub const MaxPoolParticipants: u32 = 200;
 }
 
 impl fula_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type StringLimit = StringLimit;
-    type MaxPoolParticipants = MaxPoolParticipants;
-}
-
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
- pub const MaxWellKnownNodes: u32 = 8;
-    // SBP-M1 review: only used once, consider inlining
- pub const MaxPeerIdLength: u32 = 128;
+    type StringLimit = ConstU32<128>;
+    type MaxPoolParticipants = ConstU32<200>;
 }
 
 impl pallet_node_authorization::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type MaxWellKnownNodes = MaxWellKnownNodes;
-    type MaxPeerIdLength = MaxPeerIdLength;
+    type MaxWellKnownNodes = ConstU32<8>;
+    type MaxPeerIdLength = ConstU32<128>;
     type AddOrigin = EnsureRoot<AccountId>;
     type RemoveOrigin = EnsureRoot<AccountId>;
     type SwapOrigin = EnsureRoot<AccountId>;
@@ -505,28 +409,28 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         // SBP-M1 review: simplify syntax https://github.com/paritytech/substrate/blob/ff24c60ac7d9f87727ecdd0ded9a80c56e4f4b65/bin/node-template/runtime/src/lib.rs#L284
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Aura: pallet_aura::{Pallet, Config<T>},
-        Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        System: frame_system,
+        Timestamp: pallet_timestamp,
+        Aura: pallet_aura,
+        Grandpa: pallet_grandpa,
+        Balances: pallet_balances,
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>},
-        Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
+        Sudo: pallet_sudo,
+        Scheduler: pallet_scheduler,
         Council: pallet_collective::<Instance1>,
-        NodeAuthorization: pallet_node_authorization::{Pallet, Call, Storage, Event<T>, Config<T>},
-        ValidatorSet: validator_set::{Pallet, Call, Storage, Event<T>, Config<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+        NodeAuthorization: pallet_node_authorization,
+        ValidatorSet: validator_set,
+        Session: pallet_session,
 
         // SugarFunge pallets
-        Asset: sugarfunge_asset::{Pallet, Call, Storage, Event<T>},
-        Bundle: sugarfunge_bundle::{Pallet, Call, Storage, Event<T>},
-        Bag: sugarfunge_bag::{Pallet, Call, Storage, Event<T>},
-        Market: sugarfunge_market::{Pallet, Call, Storage, Event<T>},
+        Asset: sugarfunge_asset,
+        Bundle: sugarfunge_bundle,
+        Bag: sugarfunge_bag,
+        Market: sugarfunge_market,
 
         // Functionland pallets
-        Fula: functionland_fula::{Pallet, Call, Storage, Event<T>},
-        Pool: fula_pool::{Pallet, Call, Storage, Event<T>},
+        Fula: functionland_fula,
+        Pool: fula_pool,
     }
 );
 
@@ -536,12 +440,6 @@ pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-// SBP-M1 review: doesnt appear to be used
-/// A Block signed with a Justification
-pub type SignedBlock = generic::SignedBlock<Block>;
-// SBP-M1 review: doesnt appear to be used
-/// BlockId type as expected by this runtime.
-pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
     frame_system::CheckNonZeroSender<Runtime>,
@@ -577,8 +475,6 @@ mod benches {
         [frame_system, SystemBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
-        // SBP-M1 review: remove pallet_template
-        [pallet_template, TemplateModule]
         // SBP-M1 review: add all other pallets used once benchmarking implemented and then run benchmarks
     );
 }
@@ -777,19 +673,6 @@ impl_runtime_apis! {
             use frame_system_benchmarking::Pallet as SystemBench;
             impl frame_system_benchmarking::Config for Runtime {}
 
-            // SBP-M1 review: remove
-            // let whitelist: Vec<TrackedStorageKey> = vec![
-            //     // Block Number
-            //     hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-            //     // Total Issuance
-            //     hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-            //     // Execution Phase
-            //     hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-            //     // Event Count
-            //     hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-            //     // System Events
-            //     hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-            // ];
 
             use frame_support::traits::WhitelistedStorageKeys;
             let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
