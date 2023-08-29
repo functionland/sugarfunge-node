@@ -15,10 +15,12 @@ use sp_runtime::{
     RuntimeDebug,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-// SBP-M1 review: should amount not be a u128 rather than signed?
 use sugarfunge_primitives::{Amount, Balance};
+use types::*;
 
 pub use pallet::*;
+
+mod types;
 
 #[cfg(test)]
 mod mock;
@@ -28,165 +30,6 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
-// SBP-M1 review: consider moving types to separate module
-// SBP-M1 review: add doc comments
-
-#[derive(
-    Encode,
-    Decode,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    RuntimeDebug,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub enum AmountOp {
-    Equal,
-    LessThan,
-    LessEqualThan,
-    GreaterThan,
-    GreaterEqualThan,
-}
-
-#[derive(
-    Encode,
-    Decode,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    RuntimeDebug,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub enum AMM {
-    Constant,
-}
-
-#[derive(
-    Encode,
-    Decode,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    RuntimeDebug,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub enum RateAction<ClassId, AssetId> {
-    Transfer(Amount),
-    MarketTransfer(AMM, ClassId, AssetId),
-    Mint(Amount),
-    Burn(Amount),
-    Has(AmountOp, Amount),
-}
-
-impl<ClassId, AssetId> RateAction<ClassId, AssetId> {
-    fn get_amount(&self) -> Amount {
-        match *self {
-            // SBP-M1 review: merge arm patterns with same body
-            // SBP-M1 review: use Self instead of RateAction
-            RateAction::Burn(amount) => amount,
-            RateAction::Mint(amount) => amount,
-            RateAction::Transfer(amount) => amount,
-            // SBP-M1 review: explicit variant handling preferred > 'RateAction::MarketTransfer(..) | RateAction::Has(..) => 0,'
-            _ => 0 as Amount,
-        }
-    }
-}
-
-#[derive(
-    Encode,
-    Decode,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    RuntimeDebug,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub enum RateAccount<AccountId> {
-    Market,
-    Account(AccountId),
-    Buyer,
-}
-
-#[derive(
-    Encode,
-    Decode,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    RuntimeDebug,
-    TypeInfo,
-    MaxEncodedLen,
-)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-// SBP-M1 review: name misleading, consider renaming to something like Instruction based on description in simple_market_rates() test helper
-pub struct AssetRate<AccountId, ClassId, AssetId> {
-    class_id: ClassId,
-    asset_id: AssetId,
-    action: RateAction<ClassId, AssetId>,
-    from: RateAccount<AccountId>,
-    to: RateAccount<AccountId>,
-}
-
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub type Rates<T> = BoundedVec<
-    AssetRate<
-        <T as frame_system::Config>::AccountId,
-        <T as sugarfunge_asset::Config>::ClassId,
-        <T as sugarfunge_asset::Config>::AssetId,
-    >,
-    <T as Config>::MaxRates,
->;
-
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub type RateBalances<T> = BTreeMap<
-    AssetRate<
-        <T as frame_system::Config>::AccountId,
-        <T as sugarfunge_asset::Config>::ClassId,
-        <T as sugarfunge_asset::Config>::AssetId,
-    >,
-    Amount,
->;
-
-type TransactionBalances<T> = BTreeMap<
-    (
-        RateAccount<<T as frame_system::Config>::AccountId>,
-        // SBP-M1 review: consider defining these types on Config type of this pallet, configured via runtime
-        <T as sugarfunge_asset::Config>::ClassId,
-        <T as sugarfunge_asset::Config>::AssetId,
-    ),
-    Amount,
->;
-
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug, TypeInfo)]
-// SBP-M1 review: consider pub(crate) or less, depending on usage
-pub struct RateBalance<AccountId, ClassId, AssetId> {
-    rate: AssetRate<AccountId, ClassId, AssetId>,
-    balance: Amount,
-}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -230,9 +73,9 @@ pub mod pallet {
             + Into<u64>
             + MaxEncodedLen;
 
-        /// Max number of rates per market_rate
+        /// Max number of Transactions per market_rate
         #[pallet::constant]
-        type MaxRates: Get<u32>;
+        type MaxTransactions: Get<u32>;
 
         /// Max metadata size
         #[pallet::constant]
@@ -255,7 +98,7 @@ pub mod pallet {
             NMapKey<Blake2_128Concat, T::MarketId>,
             NMapKey<Blake2_128Concat, T::MarketRateId>,
         ),
-        Rates<T>,
+        Transactions<T>,
     >;
 
     #[pallet::storage]
@@ -303,7 +146,7 @@ pub mod pallet {
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
             amount: Balance,
-            balances: Vec<RateBalance<T::AccountId, T::ClassId, T::AssetId>>,
+            balances: Vec<TransactionBalance<T::AccountId, T::ClassId, T::AssetId>>,
             success: bool,
         },
         Exchanged {
@@ -311,7 +154,7 @@ pub mod pallet {
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
             amount: Balance,
-            balances: Vec<RateBalance<T::AccountId, T::ClassId, T::AssetId>>,
+            balances: Vec<TransactionBalance<T::AccountId, T::ClassId, T::AssetId>>,
             success: bool,
         },
     }
@@ -330,7 +173,7 @@ pub mod pallet {
         MarketExists,
         MarketRateExists,
         InvalidAsset,
-        InvalidAssetRate,
+        InvalidTransaction,
         InvalidRateAccount,
         InvalidRateAmount,
         InvalidBurnPrice,
@@ -377,13 +220,13 @@ pub mod pallet {
             origin: OriginFor<T>,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            rates: Rates<T>,
+            transactions: Transactions<T>,
             // SBP-M1 review: can just be DispatchResult as no PostDispatchInfo used
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
             // SBP-M1 review: could simplify and just return value from Self::do_create_market_rate(..)
-            Self::do_create_market_rate(&who, market_id, market_rate_id, &rates)?;
+            Self::do_create_market_rate(&who, market_id, market_rate_id, &transactions)?;
 
             // SBP-M1 review: unnecessary .into() once return type changed
             Ok(().into())
@@ -477,7 +320,7 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
-        rates: &Rates<T>,
+        transactions: &Transactions<T>,
     ) -> DispatchResult {
         // SBP-M1 review: can market not be auto-created if it doesnt exist? Currently requires one transaction to create market and then another to submit rates
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
@@ -489,7 +332,7 @@ impl<T: Config> Pallet<T> {
         );
 
         // Ensure rates are valid
-        for asset_rate in rates.iter() {
+        for asset_rate in transactions.iter() {
             // SBP-M1 review: duplicate code, use asset_rate.action.get_amount()
             let amount = match asset_rate.action {
                 // SBP-M1 review: merge arms > RateAction::Burn(amount) | RateAction::Mint(amount) ...
@@ -504,7 +347,7 @@ impl<T: Config> Pallet<T> {
             ensure!(amount >= 0, Error::<T>::InvalidRateAmount);
         }
 
-        MarketRates::<T>::insert((market_id, market_rate_id), rates);
+        MarketRates::<T>::insert((market_id, market_rate_id), transactions);
 
         Self::deposit_event(Event::RateCreated {
             market_id,
@@ -647,7 +490,7 @@ impl<T: Config> Pallet<T> {
         market_rate_id: T::MarketRateId,
         amount: Balance,
         // SBP-M1 review: consider changing to Result<RateBalances<T>, DispatchError> and simply returning error if !can_do_deposit
-    ) -> Result<(bool, RateBalances<T>), DispatchError> {
+    ) -> Result<(bool, TransactionBalances<T>), DispatchError> {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
         let rates = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
@@ -660,9 +503,9 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: consider grouping each 'phase' of algorithm into blocks: aggregate, compute burns, compute transfers
         // RateAction::Transfer|Burn - Aggregate transferable prices and balances
 
-        let mut balances: TransactionBalances<T> = BTreeMap::new();
+        let mut balances: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
-        let mut prices: TransactionBalances<T> = BTreeMap::new();
+        let mut prices: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
         // SBP-M1 review: why use a signed integer?
         let total_amount: i128 = amount.try_into().map_err(|_| Error::<T>::Overflow)?;
@@ -679,7 +522,7 @@ impl<T: Config> Pallet<T> {
             asset_rate.from == RateAccount::Market && quotable
         });
 
-        let asset_rates: Vec<AssetRate<T::AccountId, T::ClassId, T::AssetId>> =
+        let asset_rates: Vec<Transaction<T::AccountId, T::ClassId, T::AssetId>> =
             asset_rates.collect();
 
         for asset_rate in &asset_rates {
@@ -831,8 +674,8 @@ impl<T: Config> Pallet<T> {
 
         let balances = deposit_balances
             .iter()
-            .map(|(rate, balance)| RateBalance {
-                rate: rate.clone(),
+            .map(|(rate, balance)| TransactionBalance {
+                transaction: rate.clone(),
                 balance: *balance,
             })
             .collect();
@@ -905,7 +748,7 @@ impl<T: Config> Pallet<T> {
         market_rate_id: T::MarketRateId,
         amount: Balance,
         // SBP-M1 review: consider changing to Result<RateBalances<T>, DispatchError> and simply returning error if !can_do_exchange
-    ) -> Result<(bool, RateBalances<T>), DispatchError> {
+    ) -> Result<(bool, TransactionBalances<T>), DispatchError> {
         ensure!(amount > 0, Error::<T>::InsufficientAmount);
 
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
@@ -994,9 +837,9 @@ impl<T: Config> Pallet<T> {
 
         // RateAction::Transfer|Burn - Aggregate transferable prices and balances
 
-        let mut balances: TransactionBalances<T> = BTreeMap::new();
+        let mut balances: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
-        let mut prices: TransactionBalances<T> = BTreeMap::new();
+        let mut prices: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
         let total_amount: i128 = amount.try_into().map_err(|_| Error::<T>::Overflow)?;
 
@@ -1203,8 +1046,8 @@ impl<T: Config> Pallet<T> {
 
         let balances = exchange_balances
             .iter()
-            .map(|(rate, balance)| RateBalance {
-                rate: rate.clone(),
+            .map(|(rate, balance)| TransactionBalance {
+                transaction: rate.clone(),
                 balance: *balance,
             })
             .collect();

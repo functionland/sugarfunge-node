@@ -374,7 +374,7 @@ impl sugarfunge_market::Config for Runtime {
     // SBP-M1 review: are these overkill for expected usage for the life of the chain?
     type MarketId = u64;
     type MarketRateId = u64;
-    type MaxRates = ConstU32<20>;
+    type MaxTransactions = ConstU32<20>;
     type MaxMetadata = ConstU32<20>;
 }
 

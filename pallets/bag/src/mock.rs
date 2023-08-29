@@ -4,7 +4,7 @@ use frame_support::{
     traits::{OnFinalize, OnInitialize},
     PalletId,
 };
-use sp_core::H256;
+use sp_core::{ConstU128, ConstU16, ConstU32, ConstU64, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -19,8 +19,8 @@ pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a c
 pub const DOLLARS: Balance = 100 * CENTS;
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const CurrencyModuleId: PalletId = PalletId(*b"sug/curr");
+    pub const BagModuleId: PalletId = PalletId(*b"sug/crow");
 }
 
 impl frame_system::Config for Test {
@@ -37,7 +37,7 @@ impl frame_system::Config for Test {
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
+    type BlockHashCount = ConstU64<250>;
     type DbWeight = ();
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -45,20 +45,16 @@ impl frame_system::Config for Test {
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
+    type SS58Prefix = ConstU16<42>;
     type OnSetCode = ();
     type MaxConsumers = frame_support::traits::ConstU32<16>;
-}
-
-parameter_types! {
-    pub const ExistentialDeposit: Balance = 1;
 }
 
 impl pallet_balances::Config for Test {
     type Balance = Balance;
     type RuntimeEvent = RuntimeEvent;
     type DustRemoval = ();
-    type ExistentialDeposit = ExistentialDeposit;
+    type ExistentialDeposit = ConstU128<1>;
     type AccountStore = System;
     type WeightInfo = ();
     type MaxLocks = ();
@@ -70,44 +66,27 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = ();
 }
 
-parameter_types! {
-    pub const CreateAssetClassDeposit: Balance = 1;
-    pub const CreateBagDeposit: Balance = 1;
-    pub const CreateCurrencyClassDeposit: Balance = 1;
-    pub const MaxClassMetadata: u32 = 1;
-    pub const MaxAssetMetadata: u32 = 1;
-}
-
 impl sugarfunge_asset::Config for Test {
     type RuntimeEvent = RuntimeEvent;
-    type CreateAssetClassDeposit = CreateAssetClassDeposit;
+    type CreateAssetClassDeposit = ConstU128<1>;
     type Currency = Balances;
     type AssetId = u64;
     type ClassId = u64;
-    type MaxClassMetadata = MaxClassMetadata;
-    type MaxAssetMetadata = MaxAssetMetadata;
-}
-
-parameter_types! {
-    pub const CurrencyModuleId: PalletId = PalletId(*b"sug/curr");
-    pub const BagModuleId: PalletId = PalletId(*b"sug/crow");
-    pub const MaxHolders: u32 = 20;
-    pub const MaxDepositClassAssets: u32 = 100;
-    pub const MaxDepositTypeAssets: u32 = 100;
+    type MaxClassMetadata = ConstU32<1>;
+    type MaxAssetMetadata = ConstU32<1>;
 }
 
 impl sugarfunge_bag::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = BagModuleId;
-    type CreateBagDeposit = CreateBagDeposit;
+    type CreateBagDeposit = ConstU128<1>;
     type Currency = Balances;
-    type MaxHolders = MaxHolders;
-    type MaxDepositClassAssets = MaxDepositClassAssets;
-    type MaxDepositTypeAssets = MaxDepositTypeAssets;
+    type MaxHolders = ConstU32<20>;
+    type MaxDepositClassAssets = ConstU32<100>;
+    type MaxDepositTypeAssets = ConstU32<100>;
     type Asset = Asset;
 }
 
-// Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test where
         Block = Block,

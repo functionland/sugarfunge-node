@@ -25,7 +25,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// SBP-M1 review: add doc comment for struct
+/// Store the parameters of a Bag Class
 #[derive(Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct BagClass<AccountId, ClassId> {
     /// The operator of the bag
@@ -34,7 +34,7 @@ pub struct BagClass<AccountId, ClassId> {
     pub class_id: ClassId,
 }
 
-// SBP-M1 review: add doc comment for struct
+/// Store the parameters of a Bag
 #[derive(Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct Bag<Balance, AccountId, ClassId, AssetId> {
     /// The operator of the bag

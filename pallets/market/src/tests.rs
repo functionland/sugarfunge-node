@@ -1,5 +1,6 @@
 use crate::{
-    mock::*, AmountOp, AssetRate, Error, RateAccount, RateAction, RateBalance, Rates, AMM,
+    mock::*, AmountOp, Error, RateAccount, RateAction, Transaction, TransactionBalance,
+    Transactions, AMM,
 };
 use frame_support::{assert_noop, assert_ok, bounded_vec};
 use sp_std::prelude::*;
@@ -16,14 +17,14 @@ fn last_event() -> RuntimeEvent {
         .event
 }
 
-fn simple_market_rates() -> Rates<Test> {
+fn simple_market_rates() -> Transactions<Test> {
     // SBP-M1 review: use bounded_vec![]
     vec![
         //
         // Buyer wants these goods
         //
         // Market will transfer 1 asset of class_id: 2000 asset_id: 1 to buyer
-        AssetRate {
+        Transaction {
             class_id: 2000,
             asset_id: 1,
             action: RateAction::Transfer(1),
@@ -32,7 +33,7 @@ fn simple_market_rates() -> Rates<Test> {
         },
         // SBP-M1 review: quantity in comment does not match mint amount in action
         // Market will mint 100 assets of class_id: 2000 asset_id: 2 for buyer
-        AssetRate {
+        Transaction {
             class_id: 2000,
             asset_id: 2,
             action: RateAction::Mint(1),
@@ -43,7 +44,7 @@ fn simple_market_rates() -> Rates<Test> {
         // Market asking price
         //
         // Market requires buyer owns 5000 or more assets of type class_id: 3000 asset_id: 0
-        AssetRate {
+        Transaction {
             class_id: 3000,
             asset_id: 1,
             action: RateAction::Has(AmountOp::GreaterEqualThan, 5000),
@@ -51,7 +52,7 @@ fn simple_market_rates() -> Rates<Test> {
             to: RateAccount::Market,
         },
         // Buyer will transfer 5 assets of type class_id: 3000 asset_id: 2 to market
-        AssetRate {
+        Transaction {
             class_id: 3000,
             asset_id: 2,
             action: RateAction::Transfer(5),
@@ -59,7 +60,7 @@ fn simple_market_rates() -> Rates<Test> {
             to: RateAccount::Market,
         },
         // Market will burn 50 assets of class_id: 3000 asset_id: 3 from buyer
-        AssetRate {
+        Transaction {
             class_id: 3000,
             asset_id: 3,
             action: RateAction::Burn(50),
@@ -70,7 +71,7 @@ fn simple_market_rates() -> Rates<Test> {
         // Royalties
         //
         // Market pays royalties to account 0
-        AssetRate {
+        Transaction {
             class_id: 4000,
             asset_id: 1,
             action: RateAction::Transfer(2),
@@ -78,7 +79,7 @@ fn simple_market_rates() -> Rates<Test> {
             to: RateAccount::Account(0),
         },
         // Buyer pays royalties to account 0
-        AssetRate {
+        Transaction {
             class_id: 4000,
             asset_id: 1,
             action: RateAction::Transfer(1),
@@ -90,14 +91,14 @@ fn simple_market_rates() -> Rates<Test> {
     .unwrap()
 }
 
-fn swap_market_rates() -> Rates<Test> {
+fn swap_market_rates() -> Transactions<Test> {
     // SBP-M1 review: use bounded_vec![]
     vec![
         //
         // Buyer wants these goods
         //
         // Market will transfer 1 asset of class_id: 2000 asset_id: 1 to buyer
-        AssetRate {
+        Transaction {
             class_id: 2000,
             asset_id: 1,
             action: RateAction::Transfer(1),
@@ -105,7 +106,7 @@ fn swap_market_rates() -> Rates<Test> {
             to: RateAccount::Buyer,
         },
         // Buyer will market transfer assets of class_id: 2000 asset_id: 2 to market
-        AssetRate {
+        Transaction {
             class_id: 2000,
             asset_id: 2,
             action: RateAction::MarketTransfer(AMM::Constant, 2000, 1),
@@ -345,13 +346,18 @@ fn deposit_works() {
 
             // SBP-M1 review: duplicate code, refactor into function
             let get_balance = |rate_idx: usize| {
-                balances.iter().find_map(|RateBalance { rate, balance }| {
-                    if *rate == rates[rate_idx] {
-                        Some(balance)
-                    } else {
-                        None
-                    }
-                })
+                balances.iter().find_map(
+                    |TransactionBalance {
+                         transaction,
+                         balance,
+                     }| {
+                        if *transaction == rates[rate_idx] {
+                            Some(balance)
+                        } else {
+                            None
+                        }
+                    },
+                )
             };
 
             assert_eq!(success, true);
@@ -394,13 +400,18 @@ fn deposit_fails() {
 
             // SBP-M1 review: duplicate code, refactor into function
             let get_balance = |rate_idx: usize| {
-                balances.iter().find_map(|RateBalance { rate, balance }| {
-                    if *rate == rates[rate_idx] {
-                        Some(balance)
-                    } else {
-                        None
-                    }
-                })
+                balances.iter().find_map(
+                    |TransactionBalance {
+                         transaction,
+                         balance,
+                     }| {
+                        if *transaction == rates[rate_idx] {
+                            Some(balance)
+                        } else {
+                            None
+                        }
+                    },
+                )
             };
 
             assert_eq!(get_balance(0), Some(&100));
@@ -536,13 +547,18 @@ fn exchange_assets_works() {
         {
             // SBP-M1 review: duplicate code, refactor into function
             let get_balance = |rate_idx: usize| {
-                balances.iter().find_map(|RateBalance { rate, balance }| {
-                    if *rate == rates[rate_idx] {
-                        Some(balance)
-                    } else {
-                        None
-                    }
-                })
+                balances.iter().find_map(
+                    |TransactionBalance {
+                         transaction,
+                         balance,
+                     }| {
+                        if *transaction == rates[rate_idx] {
+                            Some(balance)
+                        } else {
+                            None
+                        }
+                    },
+                )
             };
 
             assert_eq!(success, true);
@@ -602,13 +618,18 @@ fn exchange_assets_fails() {
         {
             // SBP-M1 review: duplicate code, refactor into function
             let get_balance = |rate_idx: usize| {
-                balances.iter().find_map(|RateBalance { rate, balance }| {
-                    if *rate == rates[rate_idx] {
-                        Some(balance)
-                    } else {
-                        None
-                    }
-                })
+                balances.iter().find_map(
+                    |TransactionBalance {
+                         transaction,
+                         balance,
+                     }| {
+                        if *transaction == rates[rate_idx] {
+                            Some(balance)
+                        } else {
+                            None
+                        }
+                    },
+                )
             };
 
             assert_eq!(success, false);
