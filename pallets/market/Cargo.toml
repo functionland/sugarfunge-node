@@ -20,12 +20,14 @@ sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
 
+sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primitives", branch = "fula/release", default-features = false }
+sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "fula/release", default-features = false }
+sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "fula/release", default-features = false }
+
 #SBP-M1 review: external dependencies not reviewed, but quick glance shows issues such as no benchmarks, invalid weights, unnecessary cargo.lock, minimal tests
-sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primitives", branch = "main", default-features = false }
-sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "main", default-features = false }
 #SBP-M1 review: appears to only be used in mock, either remove if not actually required or move to dev-dependencies
-sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "main", default-features = false }
 #SBP-M1 review: use single line
+
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
 	"derive",
 ] }

@@ -75,7 +75,7 @@ pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false, optional = true }
 
-sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primitives", branch = "main", default-features = false }
+sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primitives", branch = "fula/release", default-features = false }
 
 # local pallets
 #SBP-M1 review: has not kept pace with forked repo (e.g. benchmarked weights at https://github.com/gautamdhameja/substrate-validator-set), consider replacing dependency
@@ -83,18 +83,21 @@ sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primit
 sugarfunge-validator-set = { default-features = false, path = "../pallets/validator-set" }
 #SBP-M1 review: not used by runtime
 sugarfunge-bridge = { default-features = false, path = "../pallets/bridge" }
-#SBP-M1 review: not local pallet, move above
-sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "main", default-features = false }
+
+sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "fula/release", default-features = false }
 sugarfunge-dao = { default-features = false, path = "../pallets/dao" }
+sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "fula/release", default-features = false }
+
 #SBP-M1 review: not local pallet, move above
-sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "main", default-features = false }
+#SBP-M1 review: not local pallet, move above
+
 sugarfunge-bag = { default-features = false, path = "../pallets/bag" }
 #SBP-M1 review: pallet_template, remove from runtime until properly implemented
 sugarfunge-exgine = { default-features = false, path = "../pallets/exgine" }
 sugarfunge-market = { default-features = false, path = "../pallets/market" }
 
-functionland-fula = { git = "https://github.com/functionland/fula-pallet" , branch = "main" , default-features = false }
-fula-pool = { git = "https://github.com/MauricinhoMorales/fula-pool" , branch = "main" , default-features = false }
+functionland-fula = { git = "https://github.com/functionland/fula-pallet" , branch = "fula/release" , default-features = false }
+fula-pool = { git = "https://github.com/MauricinhoMorales/fula-pool" , branch = "fula/release" , default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate", optional = true, branch = "polkadot-v0.9.43" }
