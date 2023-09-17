@@ -2,6 +2,7 @@ name: DockerMultiplatform
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 jobs:
   build-arm64:
     runs-on: [self-hosted, linux, ARM64]
