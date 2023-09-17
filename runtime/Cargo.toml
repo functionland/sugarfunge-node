@@ -89,6 +89,7 @@ sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", b
 #SBP-M1 review: not local pallet, move above
 #SBP-M1 review: not local pallet, move above
 sugarfunge-bag = { default-features = false, path = "../pallets/bag" }
+#SBP-M1 review: pallet_template, remove from runtime until properly implemented
 sugarfunge-exgine = { default-features = false, path = "../pallets/exgine" }
 sugarfunge-market = { default-features = false, path = "../pallets/market" }
 
