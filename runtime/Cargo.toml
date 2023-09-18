@@ -62,8 +62,8 @@ frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", b
 
 # sugarfunge pallets
 sugarfunge-primitives = { git = "https://github.com/SugarFunge/sugarfunge-primitives", branch = "main", default-features = false }
-sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "main", default-features = false }
-sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "main", default-features = false }
+sugarfunge-asset = { git = "https://github.com/SugarFunge/sugarfunge-asset", branch = "SBP-M1-changes", default-features = false }
+sugarfunge-bundle = { git = "https://github.com/SugarFunge/sugarfunge-bundle", branch = "SBP-M1-changes", default-features = false }
 
 # local pallets
 #SBP-M1 review: has not kept pace with forked repo (e.g. benchmarked weights at https://github.com/gautamdhameja/substrate-validator-set), consider replacing dependency
@@ -73,7 +73,7 @@ sugarfunge-bag = { default-features = false, path = "../pallets/bag" }
 sugarfunge-market = { default-features = false, path = "../pallets/market" }
 
 # functionland pallets
-functionland-fula = { git = "https://github.com/functionland/fula-pallet" , branch = "main" , default-features = false }
+functionland-fula = { git = "https://github.com/MauricinhoMorales/fula-pallet" , branch = "SBP-M1-changes" , default-features = false }
 fula-pool = { git = "https://github.com/MauricinhoMorales/fula-pool" , branch = "main" , default-features = false }
 
 [build-dependencies]

@@ -1,21 +1,18 @@
 // SBP-M1 review: use cargo fmt
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode, HasCompact, MaxEncodedLen};
+use codec::{HasCompact, MaxEncodedLen};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     ensure,
     traits::Get,
     BoundedVec, PalletId,
 };
-use scale_info::TypeInfo;
+use sp_arithmetic::ArithmeticError;
 use sp_core::U256;
-use sp_runtime::{
-    traits::{AccountIdConversion, AtLeast32BitUnsigned, Zero},
-    RuntimeDebug,
-};
+use sp_runtime::traits::{AccountIdConversion, AtLeast32BitUnsigned, Zero};
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-use sugarfunge_primitives::{Amount, Balance};
+use sugarfunge_asset::AssetInterface;
 use types::*;
 
 pub use pallet::*;
@@ -37,19 +34,16 @@ pub mod pallet {
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
-    // SBP-M1 review: remove comment
-    /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
-    // SBP-M1 review: loose pallet coupling preferable, can sugarfunge_asset dependency be brought in via trait (associated type on this pallets Config trait)?
-    pub trait Config: frame_system::Config + sugarfunge_asset::Config {
+    pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-        // SBP-M1 review: missing doc comment
+        /// Identifier of the vault account
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        // SBP-M1 review: missing doc comment
+        // Identifier of the markets created
         type MarketId: Member
             + Parameter
             + HasCompact
@@ -61,7 +55,7 @@ pub mod pallet {
             + Into<u64>
             + MaxEncodedLen;
 
-        // SBP-M1 review: missing doc comment
+        /// Identifier of a transaction
         type MarketRateId: Member
             + Parameter
             + HasCompact
@@ -80,7 +74,16 @@ pub mod pallet {
         /// Max metadata size
         #[pallet::constant]
         type MaxMetadata: Get<u32>;
+
+        /// The interface to execute the sugarfunge-asset calls
+        type Asset: AssetInterface<AccountId = Self::AccountId>;
     }
+
+    pub type ClassId<T> = <<T as Config>::Asset as AssetInterface>::ClassId;
+
+    pub type AssetId<T> = <<T as Config>::Asset as AssetInterface>::AssetId;
+
+    pub type Balance<T> = <<T as Config>::Asset as AssetInterface>::Balance;
 
     #[pallet::pallet]
     pub struct Pallet<T>(_);
@@ -112,106 +115,102 @@ pub mod pallet {
         BoundedVec<u8, <T as Config>::MaxMetadata>,
     >;
 
-    // SBP-M1 review: add doc comments
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// Market created
         Created {
             market_id: T::MarketId,
             who: T::AccountId,
         },
+        /// Transaction created
         RateCreated {
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
             who: T::AccountId,
         },
+        /// Liquidity was added to the market
         LiquidityAdded {
             who: T::AccountId,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            class_ids: Vec<T::ClassId>,
-            asset_ids: Vec<Vec<T::AssetId>>,
-            amounts: Vec<Vec<Balance>>,
+            class_ids: Vec<ClassId<T>>,
+            asset_ids: Vec<Vec<AssetId<T>>>,
+            amounts: Vec<Vec<Balance<T>>>,
         },
+        /// Liquidity was removed from the market
         LiquidityRemoved {
             who: T::AccountId,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            class_ids: Vec<T::ClassId>,
-            asset_ids: Vec<Vec<T::AssetId>>,
-            amounts: Vec<Vec<Balance>>,
+            class_ids: Vec<ClassId<T>>,
+            asset_ids: Vec<Vec<AssetId<T>>>,
+            amounts: Vec<Vec<Balance<T>>>,
         },
+        /// Deposit made to a market
         Deposit {
             who: T::AccountId,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            amount: Balance,
-            balances: Vec<TransactionBalance<T::AccountId, T::ClassId, T::AssetId>>,
+            amount: Balance<T>,
+            balances: Vec<TransactionBalance<T::AccountId, ClassId<T>, AssetId<T>, Balance<T>>>,
             success: bool,
         },
+        /// Withdraw from the market
         Exchanged {
             buyer: T::AccountId,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            amount: Balance,
-            balances: Vec<TransactionBalance<T::AccountId, T::ClassId, T::AssetId>>,
+            amount: Balance<T>,
+            balances: Vec<TransactionBalance<T::AccountId, ClassId<T>, AssetId<T>, Balance<T>>>,
             success: bool,
         },
     }
 
-    // SBP-M1 review: add doc comments
     #[pallet::error]
     pub enum Error<T> {
-        // SBP-M1 review: can use ArithmeticError::Overflow instead of custom overflow type
-        Overflow,
+        /// Insufficient amount to make the transaction
         InsufficientAmount,
+        /// Insufficient liquidity to make the transaction
         InsufficientLiquidity,
+        /// The given market doesn't exists, create the market first
         InvalidMarket,
+        /// The market rate doesn't exists, create the market rate first
         InvalidMarketRate,
+        /// The account is not the market rate owner
         InvalidMarketOwner,
-        NotAuthorizedToMintAsset,
+        /// The market is already created
         MarketExists,
+        /// The market rate is already created
         MarketRateExists,
-        InvalidAsset,
-        InvalidTransaction,
-        InvalidRateAccount,
-        InvalidRateAmount,
+        /// The value is not in the available prices to burn
         InvalidBurnPrice,
+        /// The value is not in the available balances
         InvalidBurnBalance,
+        /// The value is not in the available prices to transfer
         InvalidTransferPrice,
+        /// The value is not in the available balances
         InvalidTransferBalance,
+        /// The acccount given is the Owner or Vault account
         InvalidBuyer,
-        InvalidArrayLength,
     }
 
-    // SBP-M1 review: remove template comment
-    // Dispatchable functions allows users to interact with the pallet and invoke state changes.
-    // These functions materialize as "extrinsics", which are often compared to transactions.
-    // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        // SBP-M1 review: add doc comments
+        /// Create a new market
         #[pallet::call_index(0)]
         // SBP-M1 review: implement benchmark and use resulting weight function - static weight definition probably underweight and no proof_size, necessary when parachain
         // SBP-M1 review: unnecessary cast
         #[pallet::weight(Weight::from_parts(10_000 as u64, 0))]
-        pub fn create_market(
-            origin: OriginFor<T>,
-            market_id: T::MarketId,
-            // SBP-M1 review: can just be DispatchResult as no PostDispatchInfo used
-        ) -> DispatchResultWithPostInfo {
+        pub fn create_market(origin: OriginFor<T>, market_id: T::MarketId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             // SBP-M1 review: how are markets removed? Can a deposit be taken to create a market to incentivize owner to remove market when no longer required?
             // SBP-M1 review: market rate removal also needs consideration
-            // SBP-M1 review: could simplify and just return value from Self::do_create_market(..)
-            Self::do_create_market(&who, market_id)?;
-
-            // SBP-M1 review: unnecessary .into() once return type changed
-            Ok(().into())
+            Self::do_create_market(who, market_id)
         }
 
-        // SBP-M1 review: add doc comments
+        /// Create a market rate for a given market
         #[pallet::call_index(1)]
         // SBP-M1 review: implement benchmark and use resulting weight function - static weight definition probably underweight and no proof_size, necessary when parachain
         // SBP-M1 review: unnecessary cast
@@ -221,18 +220,12 @@ pub mod pallet {
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
             transactions: Transactions<T>,
-            // SBP-M1 review: can just be DispatchResult as no PostDispatchInfo used
-        ) -> DispatchResultWithPostInfo {
+        ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-
-            // SBP-M1 review: could simplify and just return value from Self::do_create_market_rate(..)
-            Self::do_create_market_rate(&who, market_id, market_rate_id, &transactions)?;
-
-            // SBP-M1 review: unnecessary .into() once return type changed
-            Ok(().into())
+            Self::do_create_market_rate(who, market_id, market_rate_id, &transactions)
         }
 
-        // SBP-M1 review: add doc comments
+        /// Deposit a given amount to an specific market rate
         #[pallet::call_index(2)]
         // SBP-M1 review: implement benchmark and use resulting weight function - static weight definition probably underweight and no proof_size, necessary when parachain
         // SBP-M1 review: unnecessary cast
@@ -241,19 +234,13 @@ pub mod pallet {
             origin: OriginFor<T>,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            amount: Balance,
-            // SBP-M1 review: can just be DispatchResult as no PostDispatchInfo used
-        ) -> DispatchResultWithPostInfo {
+            amount: Balance<T>,
+        ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-
-            // SBP-M1 review: could simplify and just return value from Self::do_deposit(..)
-            Self::do_deposit(&who, market_id, market_rate_id, amount)?;
-
-            // SBP-M1 review: unnecessary .into() once return type changed
-            Ok(().into())
+            Self::do_deposit(&who, market_id, market_rate_id, amount)
         }
 
-        // SBP-M1 review: add doc comments
+        // Exchange a given amount to withdraw from an specific market rate
         #[pallet::call_index(3)]
         // SBP-M1 review: implement benchmark and use resulting weight function - static weight definition probably underweight and no proof_size, necessary when parachain
         // SBP-M1 review: unnecessary cast
@@ -262,33 +249,18 @@ pub mod pallet {
             origin: OriginFor<T>,
             market_id: T::MarketId,
             market_rate_id: T::MarketRateId,
-            amount: Balance,
-            // SBP-M1 review: can just be DispatchResult as no PostDispatchInfo used
-        ) -> DispatchResultWithPostInfo {
+            amount: Balance<T>,
+        ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-
-            // SBP-M1 review: could simplify and just return value from Self::do_exchange_assets(..)
-            Self::do_exchange_assets(&who, market_id, market_rate_id, amount)?;
-
-            // SBP-M1 review: unnecessary .into() once return type changed
-            Ok(().into())
+            Self::do_exchange_assets(&who, market_id, market_rate_id, amount)
         }
     }
-}
-
-// SBP-M1 review: add doc comment and consider relocating closer to other structs
-#[derive(Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-pub struct Market<AccountId> {
-    /// The owner of the market
-    pub owner: AccountId,
-    /// The fund account of the market
-    pub vault: AccountId,
 }
 
 // SBP-M1 review: verify pub visibility on all functions. Wrap in traits to signal if they should be accessible to other pallets
 impl<T: Config> Pallet<T> {
     // SBP-M1 review: probably doesnt need to be public, consider pub(crate), pub(super)...
-    pub fn do_create_market(who: &T::AccountId, market_id: T::MarketId) -> DispatchResult {
+    pub fn do_create_market(who: T::AccountId, market_id: T::MarketId) -> DispatchResult {
         ensure!(
             !Markets::<T>::contains_key(market_id),
             Error::<T>::MarketExists
@@ -307,24 +279,20 @@ impl<T: Config> Pallet<T> {
             },
         );
 
-        Self::deposit_event(Event::Created {
-            market_id,
-            // SBP-M1 review: unnecessary clone
-            who: who.clone(),
-        });
+        Self::deposit_event(Event::Created { market_id, who });
 
         Ok(())
     }
 
     pub fn do_create_market_rate(
-        who: &T::AccountId,
+        who: T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         transactions: &Transactions<T>,
     ) -> DispatchResult {
         // SBP-M1 review: can market not be auto-created if it doesnt exist? Currently requires one transaction to create market and then another to submit rates
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
 
         ensure!(
             !MarketRates::<T>::contains_key((market_id, market_rate_id)),
@@ -340,11 +308,8 @@ impl<T: Config> Pallet<T> {
                 RateAction::Mint(amount) => amount,
                 RateAction::Transfer(amount) => amount,
                 // SBP-M1 review: wildcard match will also match any future variants, prefer being explicit
-                _ => 0 as Amount,
+                _ => 0.into(),
             };
-            // SBP-M1 review: can be simplified to ensure!(asset_rate.action.get_amount() >= 0,...)
-            // SBP-M1 review: Amount type being signed is questionable, using u128 removes the need for this check
-            ensure!(amount >= 0, Error::<T>::InvalidRateAmount);
         }
 
         MarketRates::<T>::insert((market_id, market_rate_id), transactions);
@@ -352,8 +317,7 @@ impl<T: Config> Pallet<T> {
         Self::deposit_event(Event::RateCreated {
             market_id,
             market_rate_id,
-            // SBP-M1 review: unnecessary clone
-            who: who.clone(),
+            who,
         });
 
         Ok(())
@@ -362,14 +326,14 @@ impl<T: Config> Pallet<T> {
     // SBP-M1 review: too many lines, refactor
     // SBP-M1 review: who uses this? Appears to be no usage in project. Wrap in a well documented trait so other pallets can call via trait
     pub fn add_liquidity(
-        who: &T::AccountId,
+        who: T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         // SBP-M1 review: vectors should be bounded
-        // SBP-M1 review: use Vec<(T::ClassId, Vec<T::AssetId>, Vec<Balance>)> to avoid needing to check sizes of each vector match
-        class_ids: Vec<T::ClassId>,
-        asset_ids: Vec<Vec<T::AssetId>>,
-        amounts: Vec<Vec<Balance>>,
+        // SBP-M1 review: use Vec<(ClassId<T>, Vec<AssetId<T>>, Vec<Balance<T>>)> to avoid needing to check sizes of each vector match
+        class_ids: Vec<ClassId<T>>,
+        asset_ids: Vec<Vec<AssetId<T>>>,
+        amounts: Vec<Vec<Balance<T>>>,
     ) -> DispatchResult {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
         // SBP-M1 review: value not used, used .contains_key() with ensure!
@@ -377,29 +341,14 @@ impl<T: Config> Pallet<T> {
             .ok_or(Error::<T>::InvalidMarketRate)?;
 
         // SBP-M1 review: move above market rate check to prevent unnecessary read if caller is not market owner
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
-
-        ensure!(
-            class_ids.len() == amounts.len(),
-            Error::<T>::InvalidArrayLength
-        );
-        ensure!(
-            asset_ids.len() == amounts.len(),
-            Error::<T>::InvalidArrayLength
-        );
+        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
 
         for (idx, class_id) in class_ids.iter().enumerate() {
-            ensure!(
-                // SBP-M1 review: whilst size checked above, using .get() is preferred over indexing due to possibility of panic
-                asset_ids[idx].len() == amounts[idx].len(),
-                Error::<T>::InvalidArrayLength
-            );
-
             // SBP-M1 review: should use trait, defined as associated type on Config trait of pallet (loose coupling)
-            sugarfunge_asset::Pallet::<T>::do_batch_transfer_from(
-                &market.owner,
-                &market.owner,
-                &market.vault,
+            T::Asset::batch_transfer_from(
+                market.owner,
+                market.owner,
+                market.vault,
                 *class_id,
                 // SBP-M1 review: indexing may panic, consider .get() instead
                 asset_ids[idx].clone(),
@@ -408,8 +357,7 @@ impl<T: Config> Pallet<T> {
         }
 
         Self::deposit_event(Event::LiquidityAdded {
-            // SBP-M1 review: unnecessary clone
-            who: who.clone(),
+            who,
             market_id,
             market_rate_id,
             class_ids,
@@ -417,51 +365,33 @@ impl<T: Config> Pallet<T> {
             amounts,
         });
 
-        // SBP-M1 review: unnecessary .into()
-        Ok(().into())
+        Ok(())
     }
 
     // SBP-M1 review: too many lines, refactor
     // SBP-M1 review: who uses this? Appears to be no usage in project. Wrap in a well documented trait so other pallets can call via trait
     pub fn remove_liquidity(
-        who: &T::AccountId,
+        who: T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         // SBP-M1 review: vectors should be bounded
-        // SBP-M1 review: use Vec<(T::ClassId, Vec<T::AssetId>, Vec<Balance>)> to avoid needing to check sizes of each vector match
-        class_ids: Vec<T::ClassId>,
-        asset_ids: Vec<Vec<T::AssetId>>,
-        amounts: Vec<Vec<Balance>>,
+        // SBP-M1 review: use Vec<(ClassId<T>, Vec<AssetId<T>>, Vec<Balance<T>>)> to avoid needing to check sizes of each vector match
+        class_ids: Vec<ClassId<T>>,
+        asset_ids: Vec<Vec<AssetId<T>>>,
+        amounts: Vec<Vec<Balance<T>>>,
     ) -> DispatchResult {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
+        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
         // SBP-M1 review: value not used, used .contains_key() with ensure!
         let _market_rate = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
 
-        // SBP-M1 review: move above market rate check to prevent unnecessary read if caller is not market owner
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
-
-        ensure!(
-            class_ids.len() == amounts.len(),
-            Error::<T>::InvalidArrayLength
-        );
-        ensure!(
-            asset_ids.len() == amounts.len(),
-            Error::<T>::InvalidArrayLength
-        );
-
         for (idx, class_id) in class_ids.iter().enumerate() {
-            ensure!(
-                // SBP-M1 review: whilst size checked above, using .get() is preferred over indexing due to possibility of panic
-                asset_ids[idx].len() == amounts[idx].len(),
-                Error::<T>::InvalidArrayLength
-            );
-
             // SBP-M1 review: should use trait, defined as associated type on Config trait of pallet (loose coupling)
-            sugarfunge_asset::Pallet::<T>::do_batch_transfer_from(
-                &market.owner,
-                &market.vault,
-                &market.owner,
+            T::Asset::batch_transfer_from(
+                market.owner,
+                market.vault,
+                market.owner,
                 *class_id,
                 // SBP-M1 review: indexing may panic, consider .get() instead
                 asset_ids[idx].clone(),
@@ -470,7 +400,6 @@ impl<T: Config> Pallet<T> {
         }
 
         Self::deposit_event(Event::LiquidityRemoved {
-            // SBP-M1 review: unnecessary clone
             who: who.clone(),
             market_id,
             market_rate_id,
@@ -478,9 +407,7 @@ impl<T: Config> Pallet<T> {
             asset_ids,
             amounts,
         });
-
-        // SBP-M1 review: unnecessary .into()
-        Ok(().into())
+        Ok(())
     }
 
     // SBP-M1 review: too many lines, refactor
@@ -488,15 +415,13 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
-        amount: Balance,
+        amount: Balance<T>,
         // SBP-M1 review: consider changing to Result<RateBalances<T>, DispatchError> and simply returning error if !can_do_deposit
     ) -> Result<(bool, TransactionBalances<T>), DispatchError> {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
+        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
         let rates = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
-
-        // SBP-M1 review: move above rates check, inefficient to read all rates to then find caller is not owner when that data already in memory from previous call
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
 
         let mut deposit_balances = BTreeMap::new();
 
@@ -508,7 +433,7 @@ impl<T: Config> Pallet<T> {
         let mut prices: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
         // SBP-M1 review: why use a signed integer?
-        let total_amount: i128 = amount.try_into().map_err(|_| Error::<T>::Overflow)?;
+        let total_amount: u128 = amount.try_into().map_err(|_| ArithmeticError::Overflow)?;
 
         // SBP-M1 review: filter and collect in single statement > rates.into_iter().filter(..).collect();
         let asset_rates = rates.into_iter().filter(|asset_rate| {
@@ -522,30 +447,26 @@ impl<T: Config> Pallet<T> {
             asset_rate.from == RateAccount::Market && quotable
         });
 
-        let asset_rates: Vec<Transaction<T::AccountId, T::ClassId, T::AssetId>> =
+        let asset_rates: Vec<Transaction<T::AccountId, ClassId<T>, AssetId<T>, Balance<T>>> =
             asset_rates.collect();
 
         for asset_rate in &asset_rates {
-            let balance: i128 = sugarfunge_asset::Pallet::<T>::balance_of(
-                &market.owner,
-                asset_rate.class_id,
-                asset_rate.asset_id,
-            )
-            .try_into()
-            .map_err(|_| Error::<T>::Overflow)?;
+            let balance: u128 =
+                T::Asset::balance_of(market.owner, asset_rate.class_id, asset_rate.asset_id)
+                    .try_into()
+                    .map_err(|_| ArithmeticError::Overflow)?;
             balances.insert(
                 (
                     asset_rate.from.clone(),
                     asset_rate.class_id,
                     asset_rate.asset_id,
                 ),
-                balance,
+                balance.into(),
             );
-            let amount = asset_rate
-                .action
-                .get_amount()
+            let mut amount_value: u128 = asset_rate.action.get_amount().into();
+            amount_value = amount_value
                 .checked_mul(total_amount)
-                .ok_or(Error::<T>::Overflow)?;
+                .ok_or(ArithmeticError::Overflow)?;
             // SBP-M1 review: duplicate code, refactor into reusable function
             // SBP-M1 review: consider BTreeMap.entry() api
             if let Some(price) = prices.get_mut(&(
@@ -553,7 +474,11 @@ impl<T: Config> Pallet<T> {
                 asset_rate.class_id,
                 asset_rate.asset_id,
             )) {
-                *price = price.checked_add(amount).ok_or(Error::<T>::Overflow)?;
+                let mut price_value: u128 = (*price).into();
+                price_value = price_value
+                    .checked_add(amount_value)
+                    .ok_or(ArithmeticError::Overflow)?;
+                *price = price_value.into()
             } else {
                 prices.insert(
                     (
@@ -561,7 +486,7 @@ impl<T: Config> Pallet<T> {
                         asset_rate.class_id,
                         asset_rate.asset_id,
                     ),
-                    amount,
+                    amount_value.into(),
                 );
             }
         }
@@ -586,9 +511,12 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidBurnBalance)?;
-                *balance = balance.checked_sub(*price).ok_or(Error::<T>::Overflow)?;
-                if *balance < 0 {
-                    deposit_balances.insert(asset_rate.clone(), *balance);
+                let mut balance_value: u128 = (*balance).into();
+                balance_value = balance_value
+                    .checked_sub((*price).into())
+                    .ok_or(ArithmeticError::Overflow)?;
+                if balance_value < 0 {
+                    deposit_balances.insert(asset_rate.clone(), balance_value.into());
                 } else {
                     deposit_balances.insert(asset_rate.clone(), *price);
                 }
@@ -615,9 +543,12 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidTransferBalance)?;
-                *balance = balance.checked_sub(*price).ok_or(Error::<T>::Overflow)?;
-                if *balance < 0 {
-                    deposit_balances.insert(asset_rate.clone(), *balance);
+                let mut balance_value: u128 = (*balance).into();
+                balance_value = balance_value
+                    .checked_sub((*price).into())
+                    .ok_or(ArithmeticError::Overflow)?;
+                if balance_value < 0 {
+                    deposit_balances.insert(asset_rate.clone(), balance_value.into());
                 } else {
                     deposit_balances.insert(asset_rate.clone(), *price);
                 }
@@ -628,7 +559,7 @@ impl<T: Config> Pallet<T> {
 
         // SBP-M1 review: use deposit_balances.values()
         for (_, deposit_balance) in &deposit_balances {
-            if *deposit_balance < 0 {
+            if (*deposit_balance).into() < 0 {
                 // SBP-M1 review: consider return Err(Error::CannotDeposit);
                 can_do_deposit = false;
                 break;
@@ -644,7 +575,7 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
-        amount: Balance,
+        amount: Balance<T>,
     ) -> DispatchResult {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
         // SBP-M1 review: value not used therefore inefficient, use .contains_key() with ensure!
@@ -660,14 +591,16 @@ impl<T: Config> Pallet<T> {
         if can_do_deposit {
             // SBP-M1 review: each transfer request results in separate state change, consider grouping by class/asset if applicable
             for (asset_rate, amount) in &deposit_balances {
-                let amount: u128 = (*amount).try_into().map_err(|_| Error::<T>::Overflow)?;
-                sugarfunge_asset::Pallet::<T>::do_transfer_from(
-                    &market.owner,
-                    &market.owner,
-                    &market.vault,
+                let amount: u128 = (*amount)
+                    .try_into()
+                    .map_err(|_| ArithmeticError::Overflow)?;
+                T::Asset::transfer_from(
+                    market.owner,
+                    market.owner,
+                    market.vault,
                     asset_rate.class_id,
                     asset_rate.asset_id,
-                    amount,
+                    amount.into(),
                 )?
             }
         }
@@ -691,36 +624,33 @@ impl<T: Config> Pallet<T> {
             success: can_do_deposit,
         });
 
-        // SBP-M1 review: .into() unnecessary
-        Ok(().into())
+        Ok(())
     }
 
     pub fn get_vault(market_id: T::MarketId) -> Option<T::AccountId> {
-        // SBP-M1 review: use .map() instead of .and_then()
-        Markets::<T>::get(market_id).and_then(|market| Some(market.vault))
+        Markets::<T>::get(market_id).map(|market| market.vault)
     }
 
     pub fn balance(
         market: &Market<T::AccountId>,
-        class_id: T::ClassId,
-        asset_id: T::AssetId,
-    ) -> Balance {
-        sugarfunge_asset::Pallet::<T>::balance_of(&market.vault, class_id, asset_id)
+        class_id: ClassId<T>,
+        asset_id: AssetId<T>,
+    ) -> Balance<T> {
+        T::Asset::balance_of(market.vault, class_id, asset_id)
     }
 
-    // SBP-M1 review: typo - incomming > incoming
     /// Pricing function used for converting between outgoing asset to incomming asset.
     ///
     /// - `amount_out`: Amount of outgoing asset being bought.
     /// - `reserve_in`: Amount of incomming asset in reserves.
     /// - `reserve_out`: Amount of outgoing asset in reserves.
-    /// Return the price Amount of incomming asset to send to vault.
-    // SBP-M1 review: unused, no test
+    /// Return the price Amount of incoming asset to send to vault.
+
     pub fn get_buy_price(
-        amount_out: Balance,
-        reserve_in: Balance,
-        reserve_out: Balance,
-    ) -> Result<Balance, DispatchError> {
+        amount_out: Balance<T>,
+        reserve_in: Balance<T>,
+        reserve_out: Balance<T>,
+    ) -> Result<Balance<T>, DispatchError> {
         ensure!(
             reserve_in > Zero::zero() && reserve_out > Zero::zero(),
             Error::<T>::InsufficientLiquidity
@@ -735,7 +665,7 @@ impl<T: Config> Pallet<T> {
         let amount_in = numerator
             .checked_div(denominator)
             .and_then(|r| r.checked_add(U256::one())) // add 1 to correct possible losses caused by remainder discard
-            .and_then(|n| TryInto::<Balance>::try_into(n).ok())
+            .and_then(|n| TryInto::<Balance<T>>::try_into(n).ok())
             .unwrap_or_else(Zero::zero);
 
         Ok(amount_in)
@@ -746,10 +676,10 @@ impl<T: Config> Pallet<T> {
         buyer: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
-        amount: Balance,
+        amount: Balance<T>,
         // SBP-M1 review: consider changing to Result<RateBalances<T>, DispatchError> and simply returning error if !can_do_exchange
     ) -> Result<(bool, TransactionBalances<T>), DispatchError> {
-        ensure!(amount > 0, Error::<T>::InsufficientAmount);
+        ensure!(amount.into() > 0, Error::<T>::InsufficientAmount);
 
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
         let rates = MarketRates::<T>::get((market_id, market_rate_id))
@@ -771,67 +701,67 @@ impl<T: Config> Pallet<T> {
                     RateAccount::Buyer => buyer,
                     RateAccount::Market => &market.vault,
                 };
-                let balance: i128 = sugarfunge_asset::Pallet::<T>::balance_of(
-                    target_account,
+                let balance: u128 = T::Asset::balance_of(
+                    target_account.clone(),
                     asset_rate.class_id,
                     asset_rate.asset_id,
                 )
                 .try_into()
-                .map_err(|_| Error::<T>::Overflow)?;
+                .map_err(|_| ArithmeticError::Overflow)?;
                 // SBP-M1 review: refactor into helper function - e.g. op.evaluate(balance, amount)
                 let amount = match op {
                     AmountOp::Equal => {
-                        if balance == amount {
-                            amount
+                        if balance == amount.into() {
+                            amount.into()
                         } else {
                             // SBP-M1 review: return early?
                             can_do_exchange = false;
                             // SBP-M1 review: use safe math
-                            balance - amount
+                            balance - amount.into()
                         }
                     }
                     AmountOp::GreaterEqualThan => {
-                        if balance >= amount {
-                            amount
+                        if balance >= amount.into() {
+                            amount.into()
                         } else {
                             // SBP-M1 review: return early?
                             can_do_exchange = false;
                             // SBP-M1 review: use safe math
-                            balance - amount
+                            balance - amount.into()
                         }
                     }
                     AmountOp::GreaterThan => {
-                        if balance > amount {
-                            amount
+                        if balance > amount.into() {
+                            amount.into()
                         } else {
                             // SBP-M1 review: return early?
                             can_do_exchange = false;
                             // SBP-M1 review: use safe math
-                            balance - amount
+                            balance - amount.into()
                         }
                     }
                     AmountOp::LessEqualThan => {
-                        if balance <= amount {
-                            amount
+                        if balance <= amount.into() {
+                            amount.into()
                         } else {
                             // SBP-M1 review: return early?
                             can_do_exchange = false;
                             // SBP-M1 review: use safe math
-                            amount - balance
+                            amount.into() - balance
                         }
                     }
                     AmountOp::LessThan => {
-                        if balance < amount {
-                            amount
+                        if balance < amount.into() {
+                            amount.into()
                         } else {
                             // SBP-M1 review: return early?
                             can_do_exchange = false;
                             // SBP-M1 review: use safe math
-                            amount - balance
+                            amount.into() - balance
                         }
                     }
                 };
-                exchange_balances.insert(asset_rate.clone(), amount);
+                exchange_balances.insert(asset_rate.clone(), amount.into());
             }
         }
 
@@ -841,7 +771,7 @@ impl<T: Config> Pallet<T> {
 
         let mut prices: TransactionBalancesWIthRateAccount<T> = BTreeMap::new();
 
-        let total_amount: i128 = amount.try_into().map_err(|_| Error::<T>::Overflow)?;
+        let total_amount: u128 = amount.try_into().map_err(|_| ArithmeticError::Overflow)?;
 
         for asset_rate in rates.iter() {
             let balance = match &asset_rate.action {
@@ -852,13 +782,13 @@ impl<T: Config> Pallet<T> {
                         RateAccount::Buyer => buyer,
                         RateAccount::Market => &market.vault,
                     };
-                    let balance: i128 = sugarfunge_asset::Pallet::<T>::balance_of(
-                        target_account,
+                    let balance: u128 = T::Asset::balance_of(
+                        target_account.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,
                     )
                     .try_into()
-                    .map_err(|_| Error::<T>::Overflow)?;
+                    .map_err(|_| ArithmeticError::Overflow)?;
                     Some(balance)
                 }
                 // SBP-M1 review: prefer explict matches, wildcard will match any future added variants
@@ -871,14 +801,13 @@ impl<T: Config> Pallet<T> {
                         asset_rate.class_id,
                         asset_rate.asset_id,
                     ),
-                    balance,
+                    balance.into(),
                 );
             }
-            let amount = asset_rate
-                .action
-                .get_amount()
+            let mut amount_value: u128 = asset_rate.action.get_amount().into();
+            amount_value = amount_value
                 .checked_mul(total_amount)
-                .ok_or(Error::<T>::Overflow)?;
+                .ok_or(ArithmeticError::Overflow)?;
             // SBP-M1 review: duplicate code, refactor into reusable function
             // SBP-M1 review: consider BTreeMap.entry() api
             if let Some(price) = prices.get_mut(&(
@@ -886,7 +815,11 @@ impl<T: Config> Pallet<T> {
                 asset_rate.class_id,
                 asset_rate.asset_id,
             )) {
-                *price = price.checked_add(amount).ok_or(Error::<T>::Overflow)?;
+                let mut price_value: u128 = (*price).into();
+                price_value = price_value
+                    .checked_add(amount_value)
+                    .ok_or(ArithmeticError::Overflow)?;
+                *price = price_value.into()
             } else {
                 prices.insert(
                     (
@@ -894,7 +827,7 @@ impl<T: Config> Pallet<T> {
                         asset_rate.class_id,
                         asset_rate.asset_id,
                     ),
-                    amount,
+                    amount_value.into(),
                 );
             }
         }
@@ -918,12 +851,12 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidBurnBalance)?;
-                *balance = balance.checked_sub(*price).ok_or(Error::<T>::Overflow)?;
-                // SBP-M1 review: duplicate code
-                if *balance < 0 {
-                    // SBP-M1 review: return early
-                    can_do_exchange = false;
-                    exchange_balances.insert(asset_rate.clone(), *balance);
+                let mut balance_value: u128 = (*balance).into();
+                balance_value = balance_value
+                    .checked_sub((*price).into())
+                    .ok_or(ArithmeticError::Overflow)?;
+                if balance_value < 0 {
+                    exchange_balances.insert(asset_rate.clone(), balance_value.into());
                 } else {
                     exchange_balances.insert(asset_rate.clone(), *price);
                 }
@@ -949,11 +882,12 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidTransferBalance)?;
-                *balance = balance.checked_sub(*price).ok_or(Error::<T>::Overflow)?;
-                // SBP-M1 review: duplicate code
-                if *balance < 0 {
-                    can_do_exchange = false;
-                    exchange_balances.insert(asset_rate.clone(), *balance);
+                let mut balance_value: u128 = (*balance).into();
+                balance_value = balance_value
+                    .checked_sub((*price).into())
+                    .ok_or(ArithmeticError::Overflow)?;
+                if balance_value < 0 {
+                    exchange_balances.insert(asset_rate.clone(), balance_value.into());
                 } else {
                     exchange_balances.insert(asset_rate.clone(), *price);
                 }
@@ -985,7 +919,7 @@ impl<T: Config> Pallet<T> {
         buyer: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
-        amount: Balance,
+        amount: Balance<T>,
     ) -> DispatchResult {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
         // SBP-M1 review: value not used therefore inefficient, use .contains_key() with ensure!
@@ -1002,7 +936,9 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: consider returning an error rather than signalling that caller can not exchange via success attribute of Exchanged event
         if can_do_exchange {
             for (asset_rate, amount) in &exchange_balances {
-                let amount: u128 = (*amount).try_into().map_err(|_| Error::<T>::Overflow)?;
+                let amount: u128 = (*amount)
+                    .try_into()
+                    .map_err(|_| ArithmeticError::Overflow)?;
                 // SBP-M1 review: use .from() helper method on enum
                 let from = match &asset_rate.from {
                     RateAccount::Account(account) => account,
@@ -1016,27 +952,27 @@ impl<T: Config> Pallet<T> {
                     RateAccount::Market => &market.vault,
                 };
                 match asset_rate.action {
-                    RateAction::Transfer(_) => sugarfunge_asset::Pallet::<T>::do_transfer_from(
-                        &market.owner,
-                        from,
-                        to,
+                    RateAction::Transfer(_) => T::Asset::transfer_from(
+                        market.owner,
+                        from.clone(),
+                        to.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,
-                        amount,
+                        amount.into(),
                     )?,
-                    RateAction::Burn(_) => sugarfunge_asset::Pallet::<T>::do_burn(
-                        &market.owner,
-                        from,
+                    RateAction::Burn(_) => T::Asset::burn(
+                        market.owner,
+                        from.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,
-                        amount,
+                        amount.into(),
                     )?,
-                    RateAction::Mint(_) => sugarfunge_asset::Pallet::<T>::do_mint(
-                        &market.owner,
-                        to,
+                    RateAction::Mint(_) => T::Asset::mint(
+                        market.owner,
+                        to.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,
-                        amount,
+                        amount.into(),
                     )?,
                     // SBP-M1 review: use actual enum variants, wildcard will match future added variants
                     _ => (),
@@ -1054,7 +990,6 @@ impl<T: Config> Pallet<T> {
 
         // SBP-M1 review: consider emitting an error if the exchange could not be performed rather than success: can_do_exchange
         Self::deposit_event(Event::Exchanged {
-            // SBP-M1 review: unnecessary clone()
             buyer: buyer.clone(),
             market_id,
             market_rate_id,
@@ -1062,8 +997,6 @@ impl<T: Config> Pallet<T> {
             balances,
             success: can_do_exchange,
         });
-
-        // SBP-M1 review: .into() unnecessary
-        Ok(().into())
+        Ok(())
     }
 }

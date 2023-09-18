@@ -81,6 +81,7 @@ pub mod pallet {
         #[pallet::constant]
         type MaxDepositTypeAssets: Get<u32>;
 
+        /// The interface to execute the sugarfunge-asset calls
         type Asset: AssetInterface<AccountId = Self::AccountId>;
     }
 
