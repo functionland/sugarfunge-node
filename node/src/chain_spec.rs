@@ -218,7 +218,7 @@ fn testnet_genesis(
             nodes: vec![
                 (
                     OpaquePeerId(
-                        bs58::decode("12D3KooWDBQ8WKoDtbgVL6BFzvndKpggGjtp3keNULxxvgCMBfzt")
+                        bs58::decode("12D3KooWBeXV65svCyknCvG1yLxXVFwRxzBLqvBJnUF6W84BLugv")
                             .into_vec()
                             .unwrap(),
                     ),
@@ -226,7 +226,7 @@ fn testnet_genesis(
                 ),
                 (
                     OpaquePeerId(
-                        bs58::decode("12D3KooWGM4VvPGoapXBnTFzvvR9sNTzmSExPceHg9jCUTzWctsS")
+                        bs58::decode("12D3KooWJ7NJ2FkY9nAXNWue1qmeR9XEVDNsLRop9F2bwBpuFjxs")
                             .into_vec()
                             .unwrap(),
                     ),
