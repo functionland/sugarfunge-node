@@ -207,7 +207,7 @@ pub mod pallet {
 
             // SBP-M1 review: how are markets removed? Can a deposit be taken to create a market to incentivize owner to remove market when no longer required?
             // SBP-M1 review: market rate removal also needs consideration
-            Self::do_create_market(who, market_id)
+            Self::do_create_market(&who, market_id)
         }
 
         /// Create a market rate for a given market
@@ -222,7 +222,7 @@ pub mod pallet {
             transactions: Transactions<T>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            Self::do_create_market_rate(who, market_id, market_rate_id, &transactions)
+            Self::do_create_market_rate(&who, market_id, market_rate_id, &transactions)
         }
 
         /// Deposit a given amount to an specific market rate
@@ -260,7 +260,7 @@ pub mod pallet {
 // SBP-M1 review: verify pub visibility on all functions. Wrap in traits to signal if they should be accessible to other pallets
 impl<T: Config> Pallet<T> {
     // SBP-M1 review: probably doesnt need to be public, consider pub(crate), pub(super)...
-    pub fn do_create_market(who: T::AccountId, market_id: T::MarketId) -> DispatchResult {
+    pub fn do_create_market(who: &T::AccountId, market_id: T::MarketId) -> DispatchResult {
         ensure!(
             !Markets::<T>::contains_key(market_id),
             Error::<T>::MarketExists
@@ -279,20 +279,23 @@ impl<T: Config> Pallet<T> {
             },
         );
 
-        Self::deposit_event(Event::Created { market_id, who });
+        Self::deposit_event(Event::Created {
+            market_id,
+            who: who.clone(),
+        });
 
         Ok(())
     }
 
     pub fn do_create_market_rate(
-        who: T::AccountId,
+        who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         transactions: &Transactions<T>,
     ) -> DispatchResult {
         // SBP-M1 review: can market not be auto-created if it doesnt exist? Currently requires one transaction to create market and then another to submit rates
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
-        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(who.clone() == market.owner, Error::<T>::InvalidMarketOwner);
 
         ensure!(
             !MarketRates::<T>::contains_key((market_id, market_rate_id)),
@@ -302,7 +305,7 @@ impl<T: Config> Pallet<T> {
         // Ensure rates are valid
         for asset_rate in transactions.iter() {
             // SBP-M1 review: duplicate code, use asset_rate.action.get_amount()
-            let amount = match asset_rate.action {
+            let _amount = match asset_rate.action {
                 // SBP-M1 review: merge arms > RateAction::Burn(amount) | RateAction::Mint(amount) ...
                 RateAction::Burn(amount) => amount,
                 RateAction::Mint(amount) => amount,
@@ -317,7 +320,7 @@ impl<T: Config> Pallet<T> {
         Self::deposit_event(Event::RateCreated {
             market_id,
             market_rate_id,
-            who,
+            who: who.clone(),
         });
 
         Ok(())
@@ -326,7 +329,7 @@ impl<T: Config> Pallet<T> {
     // SBP-M1 review: too many lines, refactor
     // SBP-M1 review: who uses this? Appears to be no usage in project. Wrap in a well documented trait so other pallets can call via trait
     pub fn add_liquidity(
-        who: T::AccountId,
+        who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         // SBP-M1 review: vectors should be bounded
@@ -341,14 +344,17 @@ impl<T: Config> Pallet<T> {
             .ok_or(Error::<T>::InvalidMarketRate)?;
 
         // SBP-M1 review: move above market rate check to prevent unnecessary read if caller is not market owner
-        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(
+            who.clone() == market.owner.clone(),
+            Error::<T>::InvalidMarketOwner
+        );
 
         for (idx, class_id) in class_ids.iter().enumerate() {
             // SBP-M1 review: should use trait, defined as associated type on Config trait of pallet (loose coupling)
             T::Asset::batch_transfer_from(
-                market.owner,
-                market.owner,
-                market.vault,
+                market.owner.clone(),
+                market.owner.clone(),
+                market.vault.clone(),
                 *class_id,
                 // SBP-M1 review: indexing may panic, consider .get() instead
                 asset_ids[idx].clone(),
@@ -357,7 +363,7 @@ impl<T: Config> Pallet<T> {
         }
 
         Self::deposit_event(Event::LiquidityAdded {
-            who,
+            who: who.clone(),
             market_id,
             market_rate_id,
             class_ids,
@@ -371,7 +377,7 @@ impl<T: Config> Pallet<T> {
     // SBP-M1 review: too many lines, refactor
     // SBP-M1 review: who uses this? Appears to be no usage in project. Wrap in a well documented trait so other pallets can call via trait
     pub fn remove_liquidity(
-        who: T::AccountId,
+        who: &T::AccountId,
         market_id: T::MarketId,
         market_rate_id: T::MarketRateId,
         // SBP-M1 review: vectors should be bounded
@@ -381,7 +387,10 @@ impl<T: Config> Pallet<T> {
         amounts: Vec<Vec<Balance<T>>>,
     ) -> DispatchResult {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
-        ensure!(who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(
+            who.clone() == market.owner.clone(),
+            Error::<T>::InvalidMarketOwner
+        );
         // SBP-M1 review: value not used, used .contains_key() with ensure!
         let _market_rate = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
@@ -389,9 +398,9 @@ impl<T: Config> Pallet<T> {
         for (idx, class_id) in class_ids.iter().enumerate() {
             // SBP-M1 review: should use trait, defined as associated type on Config trait of pallet (loose coupling)
             T::Asset::batch_transfer_from(
-                market.owner,
-                market.vault,
-                market.owner,
+                market.owner.clone(),
+                market.vault.clone(),
+                market.owner.clone(),
                 *class_id,
                 // SBP-M1 review: indexing may panic, consider .get() instead
                 asset_ids[idx].clone(),
@@ -419,7 +428,7 @@ impl<T: Config> Pallet<T> {
         // SBP-M1 review: consider changing to Result<RateBalances<T>, DispatchError> and simply returning error if !can_do_deposit
     ) -> Result<(bool, TransactionBalances<T>), DispatchError> {
         let market = Markets::<T>::get(market_id).ok_or(Error::<T>::InvalidMarket)?;
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(*who == market.owner.clone(), Error::<T>::InvalidMarketOwner);
         let rates = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
 
@@ -451,10 +460,13 @@ impl<T: Config> Pallet<T> {
             asset_rates.collect();
 
         for asset_rate in &asset_rates {
-            let balance: u128 =
-                T::Asset::balance_of(market.owner, asset_rate.class_id, asset_rate.asset_id)
-                    .try_into()
-                    .map_err(|_| ArithmeticError::Overflow)?;
+            let balance: u128 = T::Asset::balance_of(
+                market.owner.clone(),
+                asset_rate.class_id,
+                asset_rate.asset_id,
+            )
+            .try_into()
+            .map_err(|_| ArithmeticError::Overflow)?;
             balances.insert(
                 (
                     asset_rate.from.clone(),
@@ -511,15 +523,11 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidBurnBalance)?;
-                let mut balance_value: u128 = (*balance).into();
-                balance_value = balance_value
+                let mut _balance_value: u128 = (*balance).into();
+                _balance_value = _balance_value
                     .checked_sub((*price).into())
                     .ok_or(ArithmeticError::Overflow)?;
-                if balance_value < 0 {
-                    deposit_balances.insert(asset_rate.clone(), balance_value.into());
-                } else {
-                    deposit_balances.insert(asset_rate.clone(), *price);
-                }
+                deposit_balances.insert(asset_rate.clone(), *price);
             }
         }
 
@@ -543,28 +551,15 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidTransferBalance)?;
-                let mut balance_value: u128 = (*balance).into();
-                balance_value = balance_value
+                let mut _balance_value: u128 = (*balance).into();
+                _balance_value = _balance_value
                     .checked_sub((*price).into())
                     .ok_or(ArithmeticError::Overflow)?;
-                if balance_value < 0 {
-                    deposit_balances.insert(asset_rate.clone(), balance_value.into());
-                } else {
-                    deposit_balances.insert(asset_rate.clone(), *price);
-                }
+                deposit_balances.insert(asset_rate.clone(), *price);
             }
         }
 
-        let mut can_do_deposit = true;
-
-        // SBP-M1 review: use deposit_balances.values()
-        for (_, deposit_balance) in &deposit_balances {
-            if (*deposit_balance).into() < 0 {
-                // SBP-M1 review: consider return Err(Error::CannotDeposit);
-                can_do_deposit = false;
-                break;
-            }
-        }
+        let can_do_deposit = true;
 
         // SBP-M1 review: consider Ok(deposit_balances)
         Ok((can_do_deposit, deposit_balances))
@@ -582,7 +577,7 @@ impl<T: Config> Pallet<T> {
         let _market_rate = MarketRates::<T>::get((market_id, market_rate_id))
             .ok_or(Error::<T>::InvalidMarketRate)?;
 
-        ensure!(*who == market.owner, Error::<T>::InvalidMarketOwner);
+        ensure!(*who == market.owner.clone(), Error::<T>::InvalidMarketOwner);
 
         let (can_do_deposit, deposit_balances) =
             Self::do_quote_deposit(who, market_id, market_rate_id, amount)?;
@@ -595,9 +590,9 @@ impl<T: Config> Pallet<T> {
                     .try_into()
                     .map_err(|_| ArithmeticError::Overflow)?;
                 T::Asset::transfer_from(
-                    market.owner,
-                    market.owner,
-                    market.vault,
+                    market.owner.clone(),
+                    market.owner.clone(),
+                    market.vault.clone(),
                     asset_rate.class_id,
                     asset_rate.asset_id,
                     amount.into(),
@@ -636,7 +631,7 @@ impl<T: Config> Pallet<T> {
         class_id: ClassId<T>,
         asset_id: AssetId<T>,
     ) -> Balance<T> {
-        T::Asset::balance_of(market.vault, class_id, asset_id)
+        T::Asset::balance_of(market.vault.clone(), class_id, asset_id)
     }
 
     /// Pricing function used for converting between outgoing asset to incomming asset.
@@ -656,19 +651,20 @@ impl<T: Config> Pallet<T> {
             Error::<T>::InsufficientLiquidity
         );
 
-        let numerator: U256 = U256::from(reserve_in)
-            .saturating_mul(U256::from(amount_out))
+        let numerator: U256 = U256::from(reserve_in.into())
+            .saturating_mul(U256::from(amount_out.into()))
             .saturating_mul(U256::from(1000u128));
-        let denominator: U256 = (U256::from(reserve_out).saturating_sub(U256::from(amount_out)))
-            .saturating_mul(U256::from(995u128));
+        let denominator: U256 = (U256::from(reserve_out.into())
+            .saturating_sub(U256::from(amount_out.into())))
+        .saturating_mul(U256::from(995u128));
 
         let amount_in = numerator
             .checked_div(denominator)
             .and_then(|r| r.checked_add(U256::one())) // add 1 to correct possible losses caused by remainder discard
-            .and_then(|n| TryInto::<Balance<T>>::try_into(n).ok())
+            .and_then(|n| TryInto::<u128>::try_into(n).ok())
             .unwrap_or_else(Zero::zero);
 
-        Ok(amount_in)
+        Ok(amount_in.into())
     }
 
     // SBP-M1 review: too many lines, refactor
@@ -851,15 +847,12 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidBurnBalance)?;
-                let mut balance_value: u128 = (*balance).into();
-                balance_value = balance_value
+                let mut _balance_value: u128 = (*balance).into();
+                _balance_value = _balance_value
                     .checked_sub((*price).into())
                     .ok_or(ArithmeticError::Overflow)?;
-                if balance_value < 0 {
-                    exchange_balances.insert(asset_rate.clone(), balance_value.into());
-                } else {
-                    exchange_balances.insert(asset_rate.clone(), *price);
-                }
+
+                exchange_balances.insert(asset_rate.clone(), *price);
             }
         }
 
@@ -882,15 +875,11 @@ impl<T: Config> Pallet<T> {
                         asset_rate.asset_id,
                     ))
                     .ok_or(Error::<T>::InvalidTransferBalance)?;
-                let mut balance_value: u128 = (*balance).into();
-                balance_value = balance_value
+                let mut _balance_value: u128 = (*balance).into();
+                _balance_value = _balance_value
                     .checked_sub((*price).into())
                     .ok_or(ArithmeticError::Overflow)?;
-                if balance_value < 0 {
-                    exchange_balances.insert(asset_rate.clone(), balance_value.into());
-                } else {
-                    exchange_balances.insert(asset_rate.clone(), *price);
-                }
+                exchange_balances.insert(asset_rate.clone(), *price);
             }
         }
 
@@ -953,7 +942,7 @@ impl<T: Config> Pallet<T> {
                 };
                 match asset_rate.action {
                     RateAction::Transfer(_) => T::Asset::transfer_from(
-                        market.owner,
+                        market.owner.clone(),
                         from.clone(),
                         to.clone(),
                         asset_rate.class_id,
@@ -961,14 +950,14 @@ impl<T: Config> Pallet<T> {
                         amount.into(),
                     )?,
                     RateAction::Burn(_) => T::Asset::burn(
-                        market.owner,
+                        market.owner.clone(),
                         from.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,
                         amount.into(),
                     )?,
                     RateAction::Mint(_) => T::Asset::mint(
-                        market.owner,
+                        market.owner.clone(),
                         to.clone(),
                         asset_rate.class_id,
                         asset_rate.asset_id,

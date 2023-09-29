@@ -71,8 +71,8 @@ pub enum RateAction<ClassId, AssetId, Balance> {
 
 impl<ClassId, AssetId, Balance: From<u128> + Into<u128>> RateAction<ClassId, AssetId, Balance> {
     /// Amount of currency of the respective transaction
-    pub fn get_amount(&self) -> Balance {
-        match *self {
+    pub fn get_amount(self) -> Balance {
+        match self {
             Self::Burn(amount) | Self::Mint(amount) | Self::Transfer(amount) => amount,
             Self::MarketTransfer(..) | Self::Has(..) => 0.into(),
         }

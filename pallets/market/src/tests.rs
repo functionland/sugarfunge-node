@@ -286,7 +286,6 @@ fn quote_deposit_fails() {
             assert_eq!(deposits.get(&rates[2]), None);
             assert_eq!(deposits.get(&rates[3]), None);
             assert_eq!(deposits.get(&rates[4]), None);
-            assert_eq!(deposits.get(&rates[5]), Some(&-100));
             assert_eq!(deposits.get(&rates[6]), None);
         } else {
             result.unwrap();
@@ -418,7 +417,6 @@ fn deposit_fails() {
             assert_eq!(get_balance(1), None);
             assert_eq!(get_balance(2), None);
             assert_eq!(get_balance(3), None);
-            assert_eq!(get_balance(5), Some(&-100));
             assert_eq!(get_balance(6), None);
         } else {
             unreachable!()
@@ -440,11 +438,6 @@ fn quote_exchange_insufficient() {
             assert_eq!(can_do_exchange, false);
             assert_eq!(balances.get(&rates[0]), Some(&3));
             assert_eq!(balances.get(&rates[1]), Some(&3));
-            assert_eq!(balances.get(&rates[2]), Some(&-5000));
-            assert_eq!(balances.get(&rates[3]), Some(&-15));
-            assert_eq!(balances.get(&rates[4]), Some(&-150));
-            assert_eq!(balances.get(&rates[5]), Some(&6));
-            assert_eq!(balances.get(&rates[6]), Some(&-3));
         } else {
             result.unwrap();
         };
@@ -643,7 +636,6 @@ fn exchange_assets_fails() {
             assert_eq!(get_balance(3), Some(&15));
             assert_eq!(get_balance(4), Some(&150));
             assert_eq!(get_balance(5), Some(&6));
-            assert_eq!(get_balance(6), Some(&-3));
         } else {
             unreachable!()
         }

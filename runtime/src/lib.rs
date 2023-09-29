@@ -371,11 +371,11 @@ impl sugarfunge_bag::Config for Runtime {
 impl sugarfunge_market::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = MarketModuleId;
-    // SBP-M1 review: are these overkill for expected usage for the life of the chain?
     type MarketId = u64;
     type MarketRateId = u64;
     type MaxTransactions = ConstU32<20>;
-    type MaxMetadata = ConstU32<20>;
+    type MaxMetadata = ConstU32<256>;
+    type Asset = Asset;
 }
 
 impl functionland_fula::Config for Runtime {

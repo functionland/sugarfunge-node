@@ -47,12 +47,12 @@ impl sugarfunge_asset::Config for Test {
     type MaxAssetMetadata = ConstU32<1>;
 }
 
-impl sugarfunge_bundle::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type PalletId = BundleModuleId;
-    type Currency = Balances;
-    type MaxAssets = ConstU32<20>;
-}
+// impl sugarfunge_bundle::Config for Test {
+//     type RuntimeEvent = RuntimeEvent;
+//     type PalletId = BundleModuleId;
+//     type Currency = Balances;
+//     type MaxAssets = ConstU32<20>;
+// }
 
 impl sugarfunge_market::Config for Test {
     type RuntimeEvent = RuntimeEvent;
@@ -61,6 +61,7 @@ impl sugarfunge_market::Config for Test {
     type MarketRateId = u64;
     type MaxTransactions = ConstU32<20>;
     type MaxMetadata = ConstU32<256>;
+    type Asset = Asset;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -75,7 +76,6 @@ frame_support::construct_runtime!(
         System: frame_system,
         Balances: pallet_balances,
         Asset: sugarfunge_asset,
-        Bundle: sugarfunge_bundle,
         Market: sugarfunge_market,
     }
 );
