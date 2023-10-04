@@ -4804,22 +4804,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-node-authorization"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.43#5e49f6e44820affccaf517fd22af564f4b495d40"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.43#5e49f6e44820affccaf517fd22af564f4b495d40"
@@ -8574,7 +8558,6 @@ dependencies = [
 name = "sugarfunge-node"
 version = "0.1.0"
 dependencies = [
- "bs58",
  "clap",
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -8655,7 +8638,6 @@ dependencies = [
  "pallet-contracts",
  "pallet-contracts-primitives",
  "pallet-grandpa",
- "pallet-node-authorization",
  "pallet-scheduler",
  "pallet-session",
  "pallet-sudo",

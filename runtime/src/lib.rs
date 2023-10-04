@@ -493,24 +493,6 @@ impl fula_pool::Config for Runtime {
     type MaxPoolParticipants = MaxPoolParticipants;
 }
 
-parameter_types! {
-    // SBP-M1 review: only used once, consider inlining
- pub const MaxWellKnownNodes: u32 = 8;
-    // SBP-M1 review: only used once, consider inlining
- pub const MaxPeerIdLength: u32 = 128;
-}
-
-impl pallet_node_authorization::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type MaxWellKnownNodes = MaxWellKnownNodes;
-    type MaxPeerIdLength = MaxPeerIdLength;
-    type AddOrigin = EnsureRoot<AccountId>;
-    type RemoveOrigin = EnsureRoot<AccountId>;
-    type SwapOrigin = EnsureRoot<AccountId>;
-    type ResetOrigin = EnsureRoot<AccountId>;
-    type WeightInfo = ();
-}
-
 construct_runtime!(
     pub struct Runtime where
         Block = Block,
@@ -527,7 +509,6 @@ construct_runtime!(
         Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
         Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
         Council: pallet_collective::<Instance1>,
-        NodeAuthorization: pallet_node_authorization::{Pallet, Call, Storage, Event<T>, Config<T>},
         ValidatorSet: validator_set::{Pallet, Call, Storage, Event<T>, Config<T>},
         Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 

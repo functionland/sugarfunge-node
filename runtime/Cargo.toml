@@ -56,7 +56,6 @@ pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false, features = [
 	"historical",
 ] }
-pallet-node-authorization = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.43" }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
@@ -143,7 +142,6 @@ std = [
 	"pallet-contracts/std",
 	"pallet-contracts-primitives/std",
 	"pallet-collective/std",
-	"pallet-node-authorization/std",
 	#SBP-M1 review: remove blank line
 
 	"sugarfunge-validator-set/std",
