@@ -15,9 +15,17 @@ COPY . /sugarfunge
 
 RUN cargo build --locked --release
 
-FROM gcr.io/distroless/cc-debian11
+# Find and copy libssl.so.3 and libcrypto.so.3 libraries
+RUN ldd /sugarfunge-api/target/release/sugarfunge-api | grep libssl.so.3 | awk '{print $3}' | xargs -I {} cp {} /libssl.so.3
+RUN ldd /sugarfunge-api/target/release/sugarfunge-api | grep libcrypto.so.3 | awk '{print $3}' | xargs -I {} cp {} /libcrypto.so.3
+RUN ldd /sugarfunge-api/target/release/sugarfunge-api | grep libgcc_s.so.1 | awk '{print $3}' | xargs -I {} cp {} /libgcc_s.so.1
+
+FROM gcr.io/distroless/base-debian12
 
 COPY --from=builder /lib/x86_64-linux-gnu/libz.so.1 /lib/x86_64-linux-gnu/libz.so.1
+COPY --from=builder /libssl.so.3 /lib/
+COPY --from=builder /libcrypto.so.3 /lib/
+COPY --from=builder /libgcc_s.so.1 /lib/
 
 COPY --from=builder /sugarfunge/target/release/sugarfunge-node /
 
