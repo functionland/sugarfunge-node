@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libclang-dev \
         protobuf-compiler \
         cmake \
-        zlib1g-dev
+        zlib1g-dev \
+        openssl \
+        libssl-dev
 
 WORKDIR /sugarfunge
 
