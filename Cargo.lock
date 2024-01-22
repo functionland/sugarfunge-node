@@ -2389,7 +2389,7 @@ dependencies = [
 [[package]]
 name = "fula-pool"
 version = "0.1.0"
-source = "git+https://github.com/MauricinhoMorales/fula-pool?branch=fula/release#6f4866042bca8dfb95665b1af6f4270564c6571f"
+source = "git+https://github.com/functionland/fula-pool?branch=main"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -2405,7 +2405,7 @@ dependencies = [
 [[package]]
 name = "functionland-fula"
 version = "0.1.0"
-source = "git+https://github.com/functionland/fula-pallet?branch=main#0f8a1ce097c8099b7b1e86da28092225c16c07db"
+source = "git+https://github.com/functionland/fula-pallet?branch=main"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
