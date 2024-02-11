@@ -35,4 +35,4 @@ COPY ./customSpecRaw.json /customSpecRaw.json
 
 ENTRYPOINT ["/sugarfunge-node"]
 
-CMD ["--dev", "--pruning", "archive", "--tmp"]
+CMD ["--pruning", "archive"]
