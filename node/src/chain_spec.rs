@@ -2,12 +2,13 @@ use sc_service::ChainType;
 use serde_json::json;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use sugarfunge_runtime::{
     opaque::SessionKeys, AccountId, AuraConfig, Balance, BalancesConfig, CouncilConfig,
     GenesisConfig, GrandpaConfig, SessionConfig, Signature, SudoConfig,
-    SystemConfig, ValidatorSetConfig, DOLLARS, WASM_BINARY,
+    SystemConfig, ValidatorSetConfig, DOLLARS, WASM_BINARY, ImOnlineConfig,
 };
 
 // The URL for the telemetry server.
@@ -33,16 +34,17 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-fn session_keys(aura: AuraId, grandpa: GrandpaId) -> SessionKeys {
-    SessionKeys { aura, grandpa }
+fn session_keys(aura: AuraId, grandpa: GrandpaId, im_online: ImOnlineId) -> SessionKeys {
+	SessionKeys { aura, grandpa, im_online }
 }
 
 /// Generate an Aura authority key.
-pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuraId, GrandpaId) {
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuraId, GrandpaId, ImOnlineId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<AuraId>(s),
         get_from_seed::<GrandpaId>(s),
+        get_from_seed::<ImOnlineId>(s),
     )
 }
 
@@ -156,7 +158,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
     wasm_binary: &[u8],
-    initial_authorities: Vec<(AccountId, AuraId, GrandpaId)>,
+    initial_authorities: Vec<(AccountId, AuraId, GrandpaId, ImOnlineId)>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
@@ -189,7 +191,7 @@ fn testnet_genesis(
                     (
                         x.0.clone(),
                         x.0.clone(),
-                        session_keys(x.1.clone(), x.2.clone()),
+                        session_keys(x.1.clone(), x.2.clone(), x.3.clone()),
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -209,6 +211,7 @@ fn testnet_genesis(
         grandpa: GrandpaConfig {
             authorities: vec![],
         },
+        im_online: ImOnlineConfig { keys: vec![] },
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
