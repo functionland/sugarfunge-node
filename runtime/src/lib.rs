@@ -491,6 +491,7 @@ impl fula_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type StringLimit = StringLimit;
     type MaxPoolParticipants = MaxPoolParticipants;
+    type WeightInfo = (); // Correctly use the default weights
 }
 
 construct_runtime!(
