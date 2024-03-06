@@ -372,6 +372,11 @@ parameter_types! {
     pub const Offset: u32 = 0;
 }
 
+impl pallet_authorship::Config for Runtime {
+    type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
+    type EventHandler = ImOnline;
+}
+
 impl pallet_session::Config for Runtime {
     type ValidatorId = <Self as frame_system::Config>::AccountId;
     type ValidatorIdOf = validator_set::ValidatorOf<Self>;
@@ -497,6 +502,7 @@ impl fula_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type StringLimit = StringLimit;
     type MaxPoolParticipants = MaxPoolParticipants;
+    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -588,6 +594,7 @@ construct_runtime!(
         // SBP-M1 review: simplify syntax https://github.com/paritytech/substrate/blob/ff24c60ac7d9f87727ecdd0ded9a80c56e4f4b65/bin/node-template/runtime/src/lib.rs#L284
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Authorship: pallet_authorship,
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         ValidatorSet: validator_set::{Pallet, Call, Storage, Event<T>, Config<T>},
         Aura: pallet_aura::{Pallet, Config<T>},

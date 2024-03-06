@@ -56,6 +56,7 @@ pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false, features = [
 	"historical",
 ] }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
