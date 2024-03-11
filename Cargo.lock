@@ -2052,7 +2052,7 @@ dependencies = [
 [[package]]
 name = "fula-pool"
 version = "0.1.1"
-source = "git+https://github.com/functionland/fula-pool?branch=main"
+source = "git+https://github.com/functionland/fula-pool?branch=main#6f1f9bcb0f5eab55f80863bfa0742092cb99087f"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -2068,7 +2068,7 @@ dependencies = [
 [[package]]
 name = "functionland-fula"
 version = "0.1.1"
-source = "git+https://github.com/functionland/fula-pallet?branch=main"
+source = "git+https://github.com/functionland/fula-pallet?branch=main#c47e2200fb3d65fffe4ad4731ea4bcb39b261618"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4340,6 +4340,26 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-session",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-im-online"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.43#5e49f6e44820affccaf517fd22af564f4b495d40"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authorship",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-staking",
  "sp-std",
 ]
@@ -7944,6 +7964,7 @@ dependencies = [
  "futures",
  "getrandom 0.2.12",
  "jsonrpsee",
+ "pallet-im-online",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",
@@ -8018,6 +8039,7 @@ dependencies = [
  "pallet-contracts",
  "pallet-contracts-primitives",
  "pallet-grandpa",
+ "pallet-im-online",
  "pallet-scheduler",
  "pallet-session",
  "pallet-sudo",

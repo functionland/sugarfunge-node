@@ -66,6 +66,11 @@ try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://gith
 # The node's runtime
 sugarfunge-runtime = { version = "0.1.0", path = "../runtime" }
 
+[dependencies.pallet-im-online]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.43'
+
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 

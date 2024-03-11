@@ -97,6 +97,7 @@ pub mod opaque {
         pub struct SessionKeys {
             pub aura: Aura,
             pub grandpa: Grandpa,
+            pub im_online: ImOnline,
         }
     }
 }
@@ -205,7 +206,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-    pub const MaxAuthorities: u32 = 32;
+    pub const MaxAuthorities: u32 = 1000;
 }
 
 impl pallet_aura::Config for Runtime {
@@ -603,6 +604,7 @@ construct_runtime!(
         Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
         Council: pallet_collective::<Instance1>,
         Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+        ImOnline: pallet_im_online,
 
         // SugarFunge pallets
         Asset: sugarfunge_asset::{Pallet, Call, Storage, Event<T>},
