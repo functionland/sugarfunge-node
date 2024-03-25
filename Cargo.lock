@@ -2068,7 +2068,7 @@ dependencies = [
 [[package]]
 name = "functionland-fula"
 version = "0.1.1"
-source = "git+https://github.com/functionland/fula-pallet?branch=main#67189ac68c2a1ab80d0c17828d6ff33495e48fff"
+source = "git+https://github.com/functionland/fula-pallet?branch=main#e48afbb714cb9ddd35b96550d757958b76e0290d"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
