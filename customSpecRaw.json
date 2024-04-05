@@ -1,13 +1,13 @@
 {
-  "name": "Local Testnet",
-  "id": "local_testnet",
+  "name": "Functionyard",
+  "id": "functionyard",
   "chainType": "Local",
   "bootNodes": [],
   "telemetryEndpoints": null,
   "protocolId": null,
   "properties": {
     "tokenDecimals": 18,
-    "tokenSymbol": "SUGAR"
+    "tokenSymbol": "GAS"
   },
   "codeSubstitutes": {},
   "genesis": {
