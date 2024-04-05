@@ -1,7 +1,7 @@
 {
   "name": "Functionyard",
   "id": "functionyard",
-  "chainType": "Local",
+  "chainType": "Live",
   "bootNodes": [],
   "telemetryEndpoints": null,
   "protocolId": null,
