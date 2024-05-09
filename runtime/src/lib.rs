@@ -368,7 +368,7 @@ impl validator_set::Config for Runtime {
 
 parameter_types! {
     // SBP-M1 review: consider increasing period (e.g. 6 hours is default within parachain template: https://github.com/paritytech/cumulus/blob/9e187970ff89169b795343d6ebcff53158b61324/parachain-template/runtime/src/lib.rs#L407)
-    pub const Period: u32 = 2 * MINUTES;
+    pub const Period: u32 = 100 * MINUTES;
     pub const Offset: u32 = 0;
 }
 
