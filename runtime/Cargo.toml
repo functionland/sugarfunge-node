@@ -24,6 +24,7 @@ hex-literal = { version = "0.4.1", optional = true }
 log = { version = "0.4.17", default-features = false }
 #SBP-M1 review: unused?
 getrandom = { version = "0.2", features = ["js"] }
+pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 
 # primitives
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43", default-features = false }
@@ -162,6 +163,7 @@ std = [
 	"fula-pool/std",
 	"sugarfunge-primitives/std",
 	"pallet-im-online/std",
+	"pallet-utility/std",
 ]
 
 runtime-benchmarks = [

@@ -106,7 +106,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("sugarfunge-node"),
     impl_name: create_runtime_str!("sugarfunge-node"),
     authoring_version: 1,
-    spec_version: 1,
+    spec_version: 101,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -241,7 +241,7 @@ impl pallet_timestamp::Config for Runtime {
     type WeightInfo = ();
 }
 
-pub const EXISTENTIAL_DEPOSIT: u128 = 500;
+pub const EXISTENTIAL_DEPOSIT: u128 = 1000;
 
 parameter_types! {
     // For weight estimation, we assume that the most locks on an individual account will be 50.
@@ -368,7 +368,7 @@ impl validator_set::Config for Runtime {
 
 parameter_types! {
     // SBP-M1 review: consider increasing period (e.g. 6 hours is default within parachain template: https://github.com/paritytech/cumulus/blob/9e187970ff89169b795343d6ebcff53158b61324/parachain-template/runtime/src/lib.rs#L407)
-    pub const Period: u32 = 100 * MINUTES;
+    pub const Period: u32 = 180 * MINUTES;
     pub const Offset: u32 = 0;
 }
 
@@ -585,6 +585,13 @@ impl pallet_im_online::Config for Runtime {
     type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
+impl pallet_utility::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type PalletsOrigin = OriginCaller;
+    type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
+  }
+
 construct_runtime!(
     pub struct Runtime where
         Block = Block,
@@ -618,6 +625,7 @@ construct_runtime!(
         // Functionland pallets
         Fula: functionland_fula::{Pallet, Call, Storage, Event<T>},
         Pool: fula_pool::{Pallet, Call, Storage, Event<T>},
+        Utility: pallet_utility,
     }
 );
 
