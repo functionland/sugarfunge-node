@@ -226,8 +226,6 @@ impl pallet_grandpa::Config for Runtime {
 
     type KeyOwnerProof = sp_core::Void;
     type EquivocationReportSystem = ();
-
-	type ForceSetOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
